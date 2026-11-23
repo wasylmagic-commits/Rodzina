@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.5.0, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.6.0, 23.11.2026
+ * 0.6.0: koniec ręcznego przypisywania sklepu do pozycji; arkusz Plan: „Gdzie co kupić” (akcje z sieci jednym zapytaniem na całą listę + ostatnie ceny z paragonów), ranking sklepów liczy aplikacja.
  * 0.5.0: sklepy (pole sklep przy pozycji zakupów, automatyczne z działu, uczy się z poprawek), wydatki (arkusz Wydatki, paragon → Claude), ceny (arkusz Ceny: historia z paragonów, najniższa/ostatnia przy pozycji, „Gdzie taniej?” przez wyszukiwanie w sieci). 0.4.2: kolor znaczka marki auta (kolumna kolor w Auta).
  * 0.4.1: rozpoznawanie dokumentów odporniejsze: arkusz Dziennik (surowa odpowiedź Claude), ponowienie przy braku pól, właściciel także po imieniu/nazwisku, uczciwa uwaga „прочитал не полностью”.
  * 0.4.0: skrzynka „Wejście” — pliki wrzucone do folderu Rodzina_Dokumenty/Wejscie same się rozpoznają i trafiają do kategorii (co 15 min lub „Разобрать сейчас”).
@@ -20,8 +21,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.5.0';
-const SCHEMAT = '6';
+const WERSJA = '0.6.0';
+const SCHEMAT = '7';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -32,6 +33,7 @@ const ARKUSZE = {
   Sklepy:        ['id', 'nazwa', 'dzialy', 'kolejnosc'],
   Wydatki:       ['id', 'data', 'kwota', 'kategoria', 'sklep', 'opis', 'kto', 'zrodlo', 'czas'],
   Ceny:          ['id', 'produkt', 'nazwa', 'sklep', 'cena', 'data', 'wydatek'],
+  Plan:          ['poz', 'sklep', 'cena', 'info', 'zrodlo', 'cena2', 'sklep2', 'czas'],
   Zadania:       ['id', 'tytul', 'dla', 'od', 'termin', 'typ', 'status', 'czas', 'czas_zrobione'],
   Zakupy:        ['id', 'nazwa', 'dodal', 'czas', 'kupione', 'kupil', 'czas_kupna'],   // stary arkusz v0.1 — tylko do migracji
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
@@ -169,6 +171,11 @@ function schemat_(sila) {
     wiersze_('Pozycje').filter(o => !o.rodzic && o.status !== 'zrobione' && czyZakupy_(o.lista) && !o.sklep).forEach(o => zmien_('Pozycje', o, { sklep: sklepDla_(o.tytul, o.dzial) }));
     pr.setProperty('MIGRACJA_05', 'tak');
   }
+  // migracja 0.6: sklep nie jest już przypisywany ręcznie ani automatycznie — czyścimy to, co wpisała 0.5
+  if (pr.getProperty('MIGRACJA_06') !== 'tak') {
+    wiersze_('Pozycje').filter(o => o.sklep).forEach(o => zmien_('Pozycje', o, { sklep: '' }));
+    pr.setProperty('MIGRACJA_06', 'tak');
+  }
   pr.setProperty('SCHEMAT', SCHEMAT);
 }
 
@@ -225,7 +232,7 @@ function obsluzZapytanie_(e) {
     if (!ja) throw new Error('Неверный ключ');
     const f = API[p.api];
     if (!f) throw new Error('Неизвестное действие');
-    if (p.api === 'cenaSzukaj' || p.api === 'paragonAnaliza') {   // długie wywołania Claude, nic nie zapisują w arkuszach — bez blokady, żeby nie wstrzymywać reszty
+    if (p.api === 'cenaSzukaj' || p.api === 'paragonAnaliza' || p.api === 'planSzukaj') {   // długie wywołania Claude, nic nie zapisują w arkuszach — bez blokady, żeby nie wstrzymywać reszty
       schemat_(); wynik = { ok: true, wynik: f(ja, p) };
     } else {
       const lock = LockService.getScriptLock();
@@ -351,6 +358,9 @@ const API = {
     if (!t) throw new Error('Не найдено');
     return cenaSzukaj_(t);
   },
+
+  // „Gdzie co kupić”: akcje z sieci (jedno zapytanie na całą listę) + ostatnie ceny z paragonów → arkusz Plan
+  planSzukaj: (ja, p) => planSzukaj_(ja, p),
 
   // --- kuchnia (seria dziecka)
   zadanieZrobione: (ja, p) => {
@@ -719,6 +729,8 @@ function dzialDla_(nazwa) {
 }
 // sklep domyślny: nauczony z poprawek (Dzialy.sklep) → sklep, dla którego dział jest „domyślny” → pusto
 function sklepDla_(nazwa, dzial) {
+  return '';   // 0.6: sklep wylicza „Gdzie co kupić” (arkusz Plan), nie człowiek
+  /* eslint-disable-next-line no-unreachable */
   const n = norm_(nazwa);
   const nauczone = n ? wiersze_('Dzialy').filter(o => o.nazwa === n && o.sklep)[0] : null;
   if (nauczone) return String(nauczone.sklep);
@@ -727,6 +739,8 @@ function sklepDla_(nazwa, dzial) {
   return s ? String(s.id) : '';
 }
 function zapamietajSklep_(nazwa, sklep) {
+  return;   // 0.6: nic nie zapamiętujemy
+  /* eslint-disable-next-line no-unreachable */
   const n = norm_(nazwa); if (!n) return;
   const o = wiersze_('Dzialy').filter(x => x.nazwa === n)[0];
   if (o) zmien_('Dzialy', o, { sklep: sklep, czas: teraz_() }); else dodaj_('Dzialy', { nazwa: n, dzial: dzialDla_(nazwa), sklep: sklep, czas: teraz_() });
@@ -765,7 +779,7 @@ function stan_(ja) {
     ja: { id: ja.id, imie: ja.imie, rola: ja.rola, push: !!ja.push, admin: czyAdmin_(ja) }, ludzie: ludzie,
     listy: listy, pozycje: poz, dzialy: DZIALY.map(d => [d[0], d[1]]),
     sklepy: wiersze_('Sklepy').sort((a, b) => Number(a.kolejnosc) - Number(b.kolejnosc)).map(x => [String(x.id), String(x.nazwa)]),
-    ceny: cenyDlaPozycji_(poz), katWyd: KAT_WYDATKOW, wydatkiOk: ja.rola === 'rodzic',
+    ceny: cenyDlaPozycji_(poz), plan: planDla_(poz), katWyd: KAT_WYDATKOW, wydatkiOk: ja.rola === 'rodzic',
     wydarzenia: wyd, zadania: zad, powiadomienia: pw,
     jade: listaKto_(ust_('kto_jedzie')).indexOf(ja.id) >= 0,
     seria: seriaKto ? seria_(seriaKto) : { dni: 0, zrobione: 0 }, seriaKto: seriaKto,
@@ -1049,6 +1063,104 @@ function paragonAnaliza_(p) {
   const sk = String(j.sklep || '').trim(), znany = wiersze_('Sklepy').filter(x => sk && norm_(sk).indexOf(norm_(String(x.nazwa).split(/[ (/]/)[0])) >= 0)[0];
   return { sklep: znany ? String(znany.nazwa) : sk.slice(0, 60), data: /^\d{4}-\d\d-\d\d$/.test(j.data || '') ? j.data : dzien_(), suma: suma,
     kategoria: KAT_WYDATKOW.some(k => k[0] === j.kategoria) ? j.kategoria : 'jedzenie', pozycje: poz.slice(0, 80) };
+}
+
+// ---------------------------------------------------------------- „Gdzie co kupić”
+const SIECI = ['Biedronka', 'Lidl', 'Kaufland', 'Auchan', 'Carrefour', 'Netto', 'Stokrotka', 'Dino', 'Aldi', 'Żabka', 'Rossmann', 'Hebe'];
+function sklepKanon_(nazwa) {
+  const n = norm_(nazwa); if (!n) return '';
+  const z = SIECI.filter(x => n.indexOf(norm_(x)) >= 0)[0];
+  return z || String(nazwa).trim().slice(0, 30);
+}
+function ddmm_(d) { d = String(d || ''); return d.slice(8, 10) + '.' + d.slice(5, 7); }
+
+// Plan do aplikacji: { idPozycji: { s: sklep, c: cena, i: opis, z: 'akcja'|'paragon', c2: najwyższa cena gdzie indziej, s2: sklep } } tylko dla otwartych pozycji zakupów
+function planDla_(poz) {
+  const ids = {}; poz.filter(o => !o.rodzic && o.status !== 'zrobione' && czyZakupy_(o.lista)).forEach(o => ids[o.id] = 1);
+  const wynik = {}; let kiedy = '';
+  wiersze_('Plan').forEach(r => { const id = String(r.poz); if (!ids[id]) return;
+    wynik[id] = { s: String(r.sklep), c: liczba_(r.cena), i: String(r.info || ''), z: String(r.zrodlo || ''), c2: liczba_(r.cena2), s2: String(r.sklep2 || '') };
+    const k = tekstDaty_(r.czas); if (k > kiedy) kiedy = k; });
+  if (Object.keys(wynik).length) wynik._kiedy = kiedy;
+  return wynik;
+}
+
+// ostatnia cena z paragonów w każdym sklepie (90 dni): { idPozycji: [ {s, c, d} ] }
+function historiaPoSklepach_(otwarte) {
+  const ceny = wiersze_('Ceny').map(c => ({ p: String(c.produkt), s: sklepKanon_(c.sklep), c: liczba_(c.cena), d: tekstDaty_(c.data).slice(0, 10) })).filter(c => c.p && c.s && c.c > 0);
+  const od = dzien_(plusDni_(-90)), wynik = {};
+  otwarte.forEach(o => {
+    const n = norm_(o.tytul); if (!n) return;
+    const traf = ceny.filter(c => c.d >= od && (c.p === n || (n.length >= 4 && c.p.length >= 4 && (c.p.indexOf(n) === 0 || n.indexOf(c.p) === 0))));
+    const g = {}; traf.forEach(c => { if (!g[c.s] || c.d >= g[c.s].d) g[c.s] = c; });
+    wynik[o.id] = Object.keys(g).map(k => g[k]);
+  });
+  return wynik;
+}
+
+// jedno zapytanie z wyszukiwaniem w sieci na całą listę → [{n, sklep, cena, jedn, do}]
+function akcjeZSieci_(tytuly) {
+  const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
+  if (!key) throw new Error('нет CLAUDE_KEY');
+  const sys = 'Ты помогаешь семье в Познани (Польша) решить, в какой магазин пойти. Сегодня ' + dzien_() + '. По каждой позиции списка найди в интернете АКТУАЛЬНЫЕ акции и цены ' +
+    'в польских сетях (gazetki: ' + SIECI.slice(0, 8).join(', ') + '; для одежды и прочего — подходящие сети). Бери только то, что действует сейчас (сегодня внутри срока акции). ' +
+    'Цены без источника и догадки не называй: если по позиции актуальной цены не нашёл — пропусти её. По одной позиции можно дать несколько магазинов. ' +
+    'Ответь ТОЛЬКО JSON-массивом, без пояснений: [{"n":номер позиции,"sklep":"Lidl","cena":5.99,"jedn":"szt|kg|l|opak","do":"YYYY-MM-DD или пусто"}]. ' +
+    'cena — цена за единицу jedn (шт., кг, л или упаковку) по акции, числом с точкой. Если ничего не нашёл — [].';
+  const lista = tytuly.map((t, i) => (i + 1) + '. ' + t).join('\n');
+  const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify({ model: ust_('model_ceny') || 'claude-sonnet-5-5', max_tokens: 3000, system: sys,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: Math.min(10, 4 + Math.ceil(tytuly.length / 3)), user_location: { type: 'approximate', city: 'Poznań', country: 'PL' } }],
+      messages: [{ role: 'user', content: 'Список покупок:\n' + lista }] })
+  });
+  const kod = r.getResponseCode(), tr = r.getContentText();
+  dziennik_('plan', String(tytuly.length), 'HTTP ' + kod, tr.slice(0, 1400));
+  if (kod !== 200) {
+    let msg = ''; try { msg = (JSON.parse(tr).error || {}).message || ''; } catch (e) {}
+    throw new Error(/web.?search/i.test(msg) ? 'поиск в интернете не включён в консоли Anthropic (Console → Settings → Privacy → Web search)' : 'Claude не ответил (HTTP ' + kod + ')');
+  }
+  const tekst = (JSON.parse(tr).content || []).filter(c => c.type === 'text').map(c => c.text || '').join('');
+  const m = tekst.match(/\[[\s\S]*\]/); let j = null;
+  try { j = m ? JSON.parse(m[0]) : null; } catch (e) {}
+  if (!Array.isArray(j)) throw new Error('ответ без списка цен');
+  return j;
+}
+
+function planSzukaj_(ja, p) {
+  const lista = String(p.lista || ''); if (!czyZakupy_(lista)) throw new Error('Это не список покупок');
+  const otwarte = widocznePozycje_(ja, false).filter(o => !o.rodzic && o.status !== 'zrobione' && o.lista === lista).slice(0, 40);
+  if (!otwarte.length) throw new Error('В списке пусто');
+  const dzis = dzien_();
+  const hist = historiaPoSklepach_(otwarte);
+  let akcje = [], uwaga = '';
+  if (String(p.siec) !== '0') {
+    try { akcje = akcjeZSieci_(otwarte.map(o => String(o.tytul))); } catch (e) { uwaga = 'Акции из сети не получил (' + e.message + '), использовал только историю чеков.'; }
+  }
+  const wiersze = [];
+  otwarte.forEach((o, i) => {
+    const kand = [];
+    akcje.filter(a => Number(a.n) === i + 1 && liczba_(a.cena) > 0 && liczba_(a.cena) < 1000 && a.sklep && (!a.do || String(a.do) >= dzis)).forEach(a =>
+      kand.push({ s: sklepKanon_(a.sklep), c: liczba_(a.cena), z: 'akcja', i: 'акция' + (a.do ? ' до ' + ddmm_(a.do) : '') + (a.jedn ? ' · за ' + ({ szt: 'шт.', kg: 'кг', l: 'л', opak: 'уп.' }[a.jedn] || a.jedn) : '') }));
+    (hist[o.id] || []).forEach(h => kand.push({ s: h.s, c: h.c, z: 'paragon', i: 'по чеку от ' + ddmm_(h.d) }));
+    if (!kand.length) return;
+    // jedna (najniższa) cena na sklep, potem najtańszy sklep; „cena2” = najwyższa cena w innym sklepie (do wyliczenia oszczędności)
+    const poS = {}; kand.forEach(k => { if (!poS[k.s] || k.c < poS[k.s].c) poS[k.s] = k; });
+    const wszystkie = Object.keys(poS).map(k => poS[k]).sort((a, b) => a.c - b.c);
+    const naj = wszystkie[0], inne = wszystkie.slice(1);
+    const drogi = inne.length ? inne[inne.length - 1] : null;
+    wiersze.push({ poz: String(o.id), sklep: naj.s, cena: naj.c.toFixed(2), info: naj.i, zrodlo: naj.z, cena2: drogi ? drogi.c.toFixed(2) : '', sklep2: drogi ? drogi.s : '', czas: teraz_() });
+  });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    schemat_();
+    const wszystkiePoz = {}; wiersze_('Pozycje').forEach(o => wszystkiePoz[String(o.id)] = 1);
+    const idy = {}; otwarte.forEach(o => idy[String(o.id)] = 1);
+    usunWiersze_('Plan', wiersze_('Plan').filter(r => idy[String(r.poz)] || !wszystkiePoz[String(r.poz)]));
+    wiersze.forEach(w => dodaj_('Plan', w));
+    const s = stan_(ja); s.planUwaga = uwaga; s.planN = wiersze.length; return s;
+  } finally { lock.releaseLock(); }
 }
 
 function cenaSzukaj_(produkt) {

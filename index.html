@@ -329,6 +329,11 @@
   .row.poz.mala{padding:7px 0;min-height:0}
   /* 0.6.0: zakupy — wiersze zwarte, dział małą etykietą obok nazwy, sklepy jako filtry */
   .card.zkc{padding:4px 14px 6px}
+  .card.plan{padding:6px 14px 10px}.card.plan h3{margin:6px 0 4px;font-size:13px}
+  .pr{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;border:0;background:none;color:inherit;font:inherit;padding:9px 10px;margin:2px 0;border-radius:12px;text-align:left}
+  .pr b{font-weight:700}.pr span{color:var(--mute);font-size:13px}.pr.on{background:var(--acc2)}.pr.on b{color:var(--acc)}
+  .plm{font-size:12px;margin-top:8px;line-height:1.4}
+  .card.zinne{opacity:.9}
   .card.zkc h3{margin:8px 0 0;font-size:13px}
   .row.poz.zk{padding:7px 0;min-height:0;align-items:center;gap:10px}
   .row.poz.zk .okr-chk{width:24px;height:24px}
@@ -455,7 +460,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.6.0';
+const WERSJA_APLIKACJI = '0.6.1';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -805,19 +810,21 @@ function wListy() {
   }).join('') + '</div>';
   const zak = czyZakupy(LISTA);
   h += '<div class="szybko"><input id="nowa" class="as-in" placeholder="' + (zak ? 'Молоко, хлеб, корм… (через запятую)' : 'Новая задача в «' + esc(nazwaListy(LISTA)) + '»') + '" onkeydown="if(event.key===\'Enter\')dodajPoz()"><button class="btn okr" onclick="dodajPoz()" aria-label="Добавить">' + I('plus') + '</button></div>';
-  if (zak) h += chipySklepow();
+  if (zak) h += panelPlanu(glowne(LISTA).filter(o => o.status !== 'zrobione'));
   const wszystkie = glowne(LISTA), otwarte = wszystkie.filter(o => o.status !== 'zrobione'), zrobione = wszystkie.filter(o => o.status === 'zrobione');
   if (!otwarte.length) h += '<div class="card"><div class="empty">' + (zak ? 'Всё куплено' : 'Здесь пусто') + '</div></div>';
   else if (zak) {
     const kolD = {}; (D.dzialy || []).forEach((d, i) => kolD[d[0]] = i);
     const sortD = (a, b) => ((kolD[a.dzial || 'inne'] === undefined ? 99 : kolD[a.dzial || 'inne']) - (kolD[b.dzial || 'inne'] === undefined ? 99 : kolD[b.dzial || 'inne'])) || a.kolejnosc - b.kolejnosc;
-    const wid = SKLEP_F === '' ? otwarte : otwarte.filter(o => (o.sklep || '') === (SKLEP_F === '_' ? '' : SKLEP_F));
-    if (!wid.length) h += '<div class="card"><div class="empty mala">В этом магазине пока ничего</div></div>';
-    else if (SKLEP_F === '') {
-      const idy = (D.sklepy || []).map(x => x[0]), ks = idy.concat(otwarte.map(o => o.sklep || '').filter((v, i, a) => v && idy.indexOf(v) < 0 && a.indexOf(v) === i)).concat(['']);
-      ks.forEach(k => { const w = wid.filter(o => (o.sklep || '') === k).sort(sortD);
-        if (w.length) h += '<div class="card zkc"><h3>' + I('cart', 1) + esc(sklepNazwa(k)) + ' <span class="mute">' + w.length + '</span></h3>' + w.map(o => wierszPoz(o)).join('') + '</div>'; });
-    } else h += '<div class="card zkc">' + wid.sort(sortD).map(o => wierszPoz(o)).join('') + '</div>';
+    const pl = D.plan || {};
+    if (SKLEP_F && !otwarte.some(o => pl[o.id] && pl[o.id].s === SKLEP_F)) SKLEP_F = '';
+    if (!SKLEP_F) h += '<div class="card zkc">' + otwarte.slice().sort(sortD).map(o => wierszPoz(o)).join('') + '</div>';
+    else {
+      // выбран магазин: что купить здесь (и позиции без данных), и отдельно то, что дешевле в других местах
+      const tu = otwarte.filter(o => !pl[o.id] || pl[o.id].s === SKLEP_F).sort(sortD), gdzie = otwarte.filter(o => pl[o.id] && pl[o.id].s !== SKLEP_F).sort(sortD);
+      h += '<div class="card zkc"><h3>' + I('cart', 1) + esc(SKLEP_F) + ' <span class="mute">' + tu.length + '</span></h3>' + tu.map(o => wierszPoz(o)).join('') + '</div>';
+      if (gdzie.length) h += '<div class="card zkc zinne"><h3>Дешевле в другом магазине <span class="mute">' + gdzie.length + '</span></h3>' + gdzie.map(o => wierszPoz(o)).join('') + '</div>';
+    }
   } else {
     const d0 = dzis(), d1 = plusDni(d0, 1);
     const grupy = [['Просрочено', o => o.termin && o.termin < d0, 'r'], ['Сегодня', o => o.termin === d0], ['Завтра', o => o.termin === d1],
@@ -836,36 +843,39 @@ function wListy() {
   return h;
 }
 function wybierzListe(id) { LISTA = id; LS.set('lista', id); render(); }
-let SKLEP_F = LS.get('sklepF') || '';   // '' = все магазины, '_' = без магазина, иначе id магазина
-function sklepNazwa(id) { if (!id) return 'Без магазина'; const s = (D.sklepy || []).find(x => x[0] === id); return s ? s[1] : id; }
+let SKLEP_F = LS.get('sklepF') || '';   // '' = все, иначе название магазина из «Где что купить»
+let PLAN_LAD = 0;
 function dzialNazwa(k) { const d = (D.dzialy || []).find(x => x[0] === k); return d ? d[1] : ''; }
 function zl(n) { return (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',') + ' zł'; }
-function chipySklepow() {
-  const otw = glowne(LISTA).filter(o => o.status !== 'zrobione'), licz = {};
-  otw.forEach(o => { const k = o.sklep || ''; licz[k] = (licz[k] || 0) + 1; });
-  const idy = (D.sklepy || []).map(x => x[0]);
-  if (SKLEP_F && SKLEP_F !== '_' && idy.indexOf(SKLEP_F) < 0) SKLEP_F = '';
-  const ch = (v, t, n) => '<button class="chip' + (SKLEP_F === v ? ' on' : '') + '" onclick="sklepFiltr(\'' + jsq(v) + '\')">' + esc(t) + (n ? ' ' + n : '') + '</button>';
-  let h = '<div class="serwf">' + ch('', 'Все', otw.length || '');
-  (D.sklepy || []).forEach(([id, n]) => { if (licz[id] || SKLEP_F === id) h += ch(id, n, licz[id] || ''); });
-  if (licz['']) h += ch('_', 'Без магазина', licz['']);
-  return h + '<button class="chip" onclick="sklepNowy()" aria-label="Новый магазин">' + I('plus', 1) + '</button></div>';
-}
 function sklepFiltr(v) { SKLEP_F = v; LS.set('sklepF', v); render(); }
-function sklepNowy() {
-  ark('<h4>Новый магазин</h4><input id="snN" class="as-in" style="width:100%" placeholder="Например: Lidl, Kaufland, аптека" onkeydown="if(event.key===\'Enter\')sklepZapisz()">' +
-    '<div class="ab"><button class="btn" onclick="sklepZapisz()">' + I('check', 1) + ' Добавить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
-  setTimeout(() => { const e = document.getElementById('snN'); if (e) e.focus(); }, 60);
+function panelPlanu(otw) {
+  const pl = D.plan || {}, g = {};
+  otw.forEach(o => { const x = pl[o.id]; if (!x || !x.s) return; const e = g[x.s] = g[x.s] || { n: 0, oszcz: 0 }; e.n++; if (x.c2 > x.c) e.oszcz += x.c2 - x.c; });
+  const klucze = Object.keys(g).sort((a, b) => g[b].n - g[a].n || g[b].oszcz - g[a].oszcz);
+  if (SKLEP_F && !g[SKLEP_F]) SKLEP_F = '';
+  let h = '<button class="btn2 szer" style="margin-bottom:10px"' + (PLAN_LAD ? ' disabled' : '') + ' onclick="planSzukaj()">' + I('spark', 1) +
+    (PLAN_LAD ? ' Ищу акции и цены… (до минуты)' : klucze.length ? ' Обновить: где что купить' : ' Где что купить') + '</button>';
+  if (!klucze.length) return h;
+  const brak = otw.filter(o => !pl[o.id]).length;
+  h += '<div class="card plan"><h3>' + I('cart', 1) + 'Куда идти</h3>' +
+    '<button class="pr' + (SKLEP_F === '' ? ' on' : '') + '" onclick="sklepFiltr(\'\')"><b>Все</b><span>' + otw.length + ' поз.</span></button>' +
+    klucze.map(k => '<button class="pr' + (SKLEP_F === k ? ' on' : '') + '" onclick="sklepFiltr(\'' + jsq(k) + '\')"><b>' + esc(k) + '</b><span>' + g[k].n + ' из ' + otw.length + (g[k].oszcz > 0 ? ' · выгода ~' + zl(g[k].oszcz) : '') + '</span></button>').join('') +
+    '<div class="mute plm">' + (brak ? 'Нет данных по ' + brak + ' поз. — их можно брать где удобно. ' : '') + 'Считается только по позициям, где известна цена; выгода — против самой высокой известной цены в другом магазине. ' +
+    (pl._kiedy ? 'Обновлено ' + esc(pl._kiedy.slice(8, 10) + '.' + pl._kiedy.slice(5, 7) + ' ' + pl._kiedy.slice(11, 16)) + '. ' : '') + 'Акции из интернета могут устареть — проверь на месте.</div></div>';
+  return h;
 }
-function sklepZapisz() {
-  const n = (document.getElementById('snN').value || '').trim(); if (!n) return;
-  const id = nowyId(); arkZamknij();
-  zmiana('sklepDodaj', { nazwa: n, id: id }, d => { d.sklepy = d.sklepy || []; if (!d.sklepy.some(x => x[1].toLowerCase() === n.toLowerCase())) d.sklepy.push([id, n]); }, 'Магазин добавлен');
+function planSzukaj() {
+  if (PLAN_LAD) return;
+  PLAN_LAD = 1; render();
+  api('planSzukaj', { lista: LISTA }).then(w => { przyjmij(w); toast(w.planUwaga ? w.planUwaga : (w.planN ? 'Готово: цены найдены для ' + w.planN + ' поз.' : 'Цен не нашёл — пока нет ни акций, ни истории чеков')); })
+    .catch(e => toast(e.message === 'Failed to fetch' ? 'Нет связи с сервером' : e.message))
+    .finally(() => { PLAN_LAD = 0; render(); });
 }
 function wierszZakup(o) {
   const zr = o.status === 'zrobione', c = (D.ceny || {})[o.id], meta = [];
-  if (c && c.o) meta.push('посл. ' + zl(c.o[0]) + (c.o[1] ? ' · ' + esc(c.o[1]) : ''));
-  if (c && c.m && c.o && c.m[0] < c.o[0]) meta.push('<span class="tan">дешевле ' + zl(c.m[0]) + (c.m[1] ? ' · ' + esc(c.m[1]) : '') + '</span>');
+  const pn = (D.plan || {})[o.id];
+  if (pn && pn.s) meta.push('<span class="tan">' + esc(pn.s) + ' · ' + zl(pn.c) + ' · ' + esc(pn.i) + '</span>');
+  else if (c && c.o) meta.push('посл. ' + zl(c.o[0]) + (c.o[1] ? ' · ' + esc(c.o[1]) : ''));
   if (o.notatka) meta.push(I('note', 1));
   return '<div class="row poz zk' + (zr ? ' done' : '') + (NOWE.has(o.id) ? ' nowy' : '') + '" data-id="' + esc(o.id) + '"><button class="okr-chk" role="checkbox" aria-checked="' + zr + '" aria-label="Куплено" onclick="klik(\'' + jsq(o.id) + '\')">' + I('check', 1) + '</button>' +
     '<div class="g" onclick="edytuj(\'' + jsq(o.id) + '\')"><div class="t zt"><span class="tx">' + esc(o.tytul) + '</span><span class="dz">' + esc(dzialNazwa(o.dzial || 'inne')) + '</span></div>' +
@@ -908,9 +918,8 @@ function dodajPoz() {
   const e = document.getElementById('nowa'), v = e.value.trim(); if (!v) return;
   const lista = LISTA, zak = czyZakupy(lista), id = nowyId();
   const tytuly = zak ? v.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : [v];
-  const sk = zak && SKLEP_F && SKLEP_F !== '_' ? SKLEP_F : '';
-  zmiana('pozDodaj', { lista: lista, tytul: v, id: id, sklep: sk }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: noweId(i ? nowyId() : id), lista: lista, tytul: t, rodzic: '',
-    dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', sklep: sk, notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
+  zmiana('pozDodaj', { lista: lista, tytul: v, id: id }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: noweId(i ? nowyId() : id), lista: lista, tytul: t, rodzic: '',
+    dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', sklep: '', notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
   setTimeout(() => { const n = document.getElementById('nowa'); if (n) n.focus(); }, 30);
 }
 function pytajWyczysc() {
@@ -928,7 +937,7 @@ function wyczysc() {
 let ED = null;
 function edytuj(id) {
   const o = (D.pozycje || []).find(x => x.id === id); if (!o) return;
-  ED = { id: id, tytul: o.tytul, termin: o.termin || '', dla: o.dla || '', przyp: o.przyp || '', lista: o.lista, dzial: o.dzial || 'inne', sklep: o.sklep || '', notatka: o.notatka || '', cenaTekst: '', cenaLad: 0 };
+  ED = { id: id, tytul: o.tytul, termin: o.termin || '', dla: o.dla || '', przyp: o.przyp || '', lista: o.lista, dzial: o.dzial || 'inne', notatka: o.notatka || '', cenaTekst: '', cenaLad: 0 };
   rysujArkusz();
 }
 function odswiezArkusz() {
@@ -972,9 +981,9 @@ function rysujArkusz() {
   if (bylo) { document.getElementById('edT').value = ED.tytul; document.getElementById('edN').value = ED.notatka; a.querySelector('.ar').scrollTop = sc; }
 }
 function blokSklepu(o) {
-  const c = (D.ceny || {})[o.id], idy = (D.sklepy || []).map(x => x[0]);
-  const opc = [['', 'Без магазина']].concat(D.sklepy || []); if (ED.sklep && idy.indexOf(ED.sklep) < 0) opc.push([ED.sklep, ED.sklep]);
-  let h = '<label>Магазин</label><select class="as-in" onchange="edUstaw(\'sklep\',this.value)">' + opc.map(([k, n]) => '<option value="' + esc(k) + '"' + (ED.sklep === k ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
+  const c = (D.ceny || {})[o.id], pn = (D.plan || {})[o.id];
+  let h = '';
+  if (pn && pn.s) h += '<div class="mute" style="margin-top:8px">Выгоднее всего: <b>' + esc(pn.s) + ' · ' + zl(pn.c) + '</b> (' + esc(pn.i) + ')' + (pn.c2 > pn.c ? '<br>В ' + esc(pn.s2) + ' дороже: ' + zl(pn.c2) : '') + '</div>';
   if (c && c.o) h += '<div class="mute" style="margin-top:8px">Последняя цена: <b>' + zl(c.o[0]) + '</b>' + (c.o[1] ? ' · ' + esc(c.o[1]) : '') + ' (' + esc(c.o[2].slice(8, 10) + '.' + c.o[2].slice(5, 7)) + ')' +
     (c.m ? '<br>Минимум за 90 дней: <b>' + zl(c.m[0]) + '</b>' + (c.m[1] ? ' · ' + esc(c.m[1]) : '') : '') + '</div>';
   h += '<button type="button" class="btn2 szer" style="margin-top:8px"' + (ED.cenaLad ? ' disabled' : '') + ' onclick="szukajCeny()">' + I('spark', 1) + (ED.cenaLad ? ' Ищу акции…' : ' Где дешевле?') + '</button>';
@@ -1009,7 +1018,7 @@ function zapiszEd() {
   ED.tytul = document.getElementById('edT').value.trim(); ED.notatka = document.getElementById('edN').value.trim();
   if (!ED.tytul) return toast('Название не может быть пустым');
   const zmiany = {};
-  ['tytul', 'termin', 'dla', 'przyp', 'lista', 'dzial', 'sklep', 'notatka'].forEach(k => { if (String(ED[k] || '') !== String(o[k] || '')) zmiany[k] = ED[k] || ''; });
+  ['tytul', 'termin', 'dla', 'przyp', 'lista', 'dzial', 'notatka'].forEach(k => { if (String(ED[k] || '') !== String(o[k] || '')) zmiany[k] = ED[k] || ''; });
   if (zmiany.przyp) zmiany.przyp = zmiany.przyp.slice(0, 16);
   const id = ED.id; ED = null; arkZamknij();
   if (!Object.keys(zmiany).length) return;
