@@ -414,7 +414,7 @@
  * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.3.3';
+const WERSJA_APLIKACJI = '0.4.0';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -665,6 +665,14 @@ function zapiszZadanie(dla) {
 }
 function kuchniaGotowe(id) {
   zmiana('zadanieZrobione', { id: id }, d => { const z = d.zadania.find(x => x.id === id); if (z) z.status = 'zrobione'; }, 'Молодец! Уведомление ушло');
+}
+async function wejscieTeraz() {
+  toast('Разбираю папку Wejscie…');
+  try {
+    const r = await api('wejscieTeraz');
+    toast(r.ile ? 'Разложено файлов: ' + r.ile : 'В папке Wejscie новых файлов нет');
+    load(true);
+  } catch (e) { toast('Не вышло: ' + e.message); }
 }
 function pwOdswiez() {
   const e = document.getElementById('pwb'); if (!e) return;
@@ -930,6 +938,7 @@ function wWiecej() {
   if (window.FB && 'Notification' in window) kafle.push(['bell', D.ja.push ? 'Уведомления' : 'Включить уведомления', D.ja.push ? 'включены' : 'пуши на телефон', 'pushWlacz()']);
   if (window.FB && D.ja.push) kafle.push(['bell', 'Проверить уведомления', 'пришлю пробное', 'pushTest()']);
   if (D.seriaKto) kafle.push(['flame', 'Серия', D.seria.dni + ' дн. без пропусков', 'go(\'dzis\')']);
+  if (D.ja.admin) kafle.push(['id', 'Разобрать «Wejscie»', 'файлы из папки на Drive', 'wejscieTeraz()']);
   if (D.ja.admin) kafle.push(['update', 'Обновление системы', 'проверить и установить', 'podstrona(\'akt\')']);
   kafle.push(['info', 'О приложении', 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']);
   return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';

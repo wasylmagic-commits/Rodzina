@@ -1,5 +1,6 @@
 /* =====================================================================
  * RODZINA — SILNIK aplikacji rodzinnej — v0.3.1, 23.11.2026
+ * 0.4.0: skrzynka „Wejście” — pliki wrzucone do folderu Rodzina_Dokumenty/Wejscie same się rozpoznają i trafiają do kategorii (co 15 min lub „Разобрать сейчас”).
  * 0.3.1: pushTest — próbne powiadomienie dla siebie (diagnostyka push).
  * 0.3.0: dokumenty (Drive, rozpoznanie przez Claude, termin ważności), auta, „moje dane” (SOS/kolizja), ustawienia rodziny w aplikacji,
  *        „Jadę do domu” dla obojga rodziców, wysyłka plików przez POST (Ładowarka ≥ 2).
@@ -17,7 +18,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.3.1';
+const WERSJA = '0.4.0';
 const SCHEMAT = '3';
 
 const ARKUSZE = {
@@ -313,6 +314,12 @@ const API = {
     return stan_(ja);
   },
 
+  // ręczne uruchomienie skrzynki „Wejście” (admin)
+  wejscieTeraz: (ja) => {
+    if (!czyAdmin_(ja)) throw new Error('Только администратор');
+    return { ile: wejscie_(10) };
+  },
+
   pushToken: (ja, p) => { zmien_('Ludzie', ja, { push: p.t || '' }); return { ok: 1 }; },
 
   // próbne powiadomienie dla siebie; zwraca powód, jeśli nie doszło (bez kluczy w odpowiedzi)
@@ -468,7 +475,8 @@ function analizaDok_(ja, p) {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 300, system: sys, messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: String(p.b64) } },
+        (p.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: String(p.b64) } }
+          : { type: 'image', source: { type: 'base64', media_type: p.mime || 'image/jpeg', data: String(p.b64) } }),
         { type: 'text', text: 'Пишет: ' + ja.id + '. Имя файла: ' + String(p.nazwa || '—') } ] }] })
     });
     if (r.getResponseCode() !== 200) return { kategoria: zNazwy, zrodlo: 'nazwa' };
@@ -478,6 +486,58 @@ function analizaDok_(ja, p) {
       auto: auta.some(a => a.id === j.auto) ? j.auto : '', wazny_do: /^\d{4}-\d\d-\d\d$/.test(j.wazny_do || '') ? j.wazny_do : '', opis: String(j.opis || '').slice(0, 200), zrodlo: 'claude' };
   } catch (e) { return { kategoria: zNazwy, zrodlo: 'nazwa' }; }
 }
+// ---------------------------------------------------------------- skrzynka „Wejście”: pliki wrzucone prosto do folderu
+function folderWejscie_() {
+  const f = folderDok_(), it = f.getFoldersByName('Wejscie');
+  return it.hasNext() ? it.next() : f.createFolder('Wejscie');
+}
+function adminId_() { const a = listaKto_(ust_('admin') || ''); return a.length && ust_('admin') ? a[0] : rodzice_()[0]; }
+// przerabia do `limit` plików; zwraca, ile rozłożono. Plik, którego nie da się rozpoznać, zostaje w „Wejscie” (znacznik w opisie pliku), rodzic dostaje wiadomość raz
+function wejscie_(limit) {
+  const wej = folderWejscie_(), admin = wiersze_('Ludzie').filter(o => o.id === adminId_())[0];
+  if (!admin) return 0;
+  let zrobione = 0;
+  const it = wej.getFiles();
+  while (it.hasNext() && zrobione < limit) {
+    const plik = it.next();
+    if (String(plik.getDescription() || '').indexOf('rodzina:') === 0) continue;   // już próbowany
+    const mime = plik.getMimeType(), nazwaOrg = plik.getName();
+    const obsl = /^(application\/pdf|image\/(jpeg|png|webp|gif))$/.test(mime);
+    const zdjecieInne = /^image\/(heic|heif)$/.test(mime);
+    if (!obsl && !zdjecieInne) { plik.setDescription('rodzina:nieobslugiwany'); powiadom_([admin.id], '📂 В «Wejscie» лежит «' + nazwaOrg + '», этот тип файла я не разбираю (нужны PDF или фото).', false); continue; }
+    if (plik.getSize() > DOK_MAX) { plik.setDescription('rodzina:duzy'); powiadom_([admin.id], '📂 «' + nazwaOrg + '» больше 20 МБ, не разобрал.', false); continue; }
+    try {
+      const blob = plik.getBlob();
+      const r = obsl ? analizaDok_(admin, { b64: Utilities.base64Encode(blob.getBytes()), mime: mime, nazwa: nazwaOrg })
+                     : { kategoria: zgadnijKat_(nazwaOrg), zrodlo: 'nazwa' };
+      const kat = kategoria_(r.kategoria);
+      const rozsz = mime === 'application/pdf' ? '.pdf' : mime === 'image/png' ? '.png' : /heic|heif/.test(mime) ? '.heic' : '.jpg';
+      const tytul = (r.tytul || nazwaOrg.replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 150) || 'Документ';
+      const uwagi = [];
+      let wlasc = r.wlasciciel;
+      if (!wlasc) { wlasc = admin.id; uwagi.push('проверь: не понял, чей это документ, записал на ' + admin.imie); }
+      if (r.zrodlo !== 'claude') uwagi.push('проверь: разложил только по названию файла, содержимое не читал');
+      const nazwa = dzien_() + ' ' + tytul + rozsz, folder = folderKat_(kat[0]);
+      let wynik = plik;
+      try { plik.moveTo(folder); plik.setName(nazwa); }
+      catch (e) { wynik = plik.makeCopy(nazwa, folder); try { plik.setTrashed(true); } catch (e2) {} }
+      finalizujWejscie_(wynik, admin, r, kat, tytul, wlasc, uwagi, mime, nazwa);
+      zrobione++;
+    } catch (e) {
+      plik.setDescription('rodzina:blad');
+      powiadom_([admin.id], '📂 Не смог разобрать «' + nazwaOrg + '», он остался в «Wejscie»: ' + String(e.message).slice(0, 100), false);
+    }
+  }
+  return zrobione;
+}
+function finalizujWejscie_(plik, admin, r, kat, tytul, wlasc, uwagi, mime, nazwa) {
+  dodaj_('Dokumenty', { id: id_(), tytul: tytul, kategoria: kat[0], wlasciciel: wlasc, auto: r.auto || '', widocznosc: widocznosc_('', kat),
+    plik: plik.getId(), mime: mime, nazwa_pliku: nazwa, rozmiar: plik.getSize(), wazny_do: r.wazny_do || '', sos: 0,
+    notatka: uwagi.concat(r.opis ? [r.opis] : []).join('\n').slice(0, 500), od: admin.id, czas: teraz_() });
+  powiadom_([admin.id], '📂 Разложил: «' + tytul + '» → ' + kat[1] + (r.wazny_do ? ', действует до ' + ladnaData_(r.wazny_do) : '') + (uwagi.length ? '. ⚠️ ' + uwagi[0] : ''), true);
+  return true;
+}
+
 function zgadnijKat_(t) {
   t = norm_(t);
   const reg = [['ubezp', /полис|страхов|polis|ubezpiecz|\boc\b|\bac\b|assistance/], ['auto', /авто|машин|техпасп|техосмотр|dowód rej|dowod rej|przegląd|przeglad|samoch|fiesta|mercedes/],
@@ -677,6 +737,7 @@ function co15_() {
     schemat_();
     przypomnienia_();
     przypomnieniaPozycji_();
+    try { wejscie_(3); } catch (e) {}
     const pr = PropertiesService.getScriptProperties(), dz = dzien_(), g = godz_();
     if (g >= ust_('poranek') && g < '12:00' && pr.getProperty('poranek') !== dz) { pr.setProperty('poranek', dz); podsumowanie_('poranek'); }
     if (g >= ust_('wieczor') && g < '23:00' && pr.getProperty('wieczor') !== dz) { pr.setProperty('wieczor', dz); podsumowanie_('wieczor'); }
