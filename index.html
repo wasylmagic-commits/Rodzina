@@ -388,7 +388,7 @@
   .dwa .btn,.dwa .btn2{min-width:0;padding:0 12px;white-space:nowrap}
   /* ===== 0.5.0 (23.11.2026): jak w Serwis myjni – zaznaczanie, przesuwanie zakładek; animacje list ===== */
   html,body{overflow-x:clip;max-width:100%}
-  main{overflow-x:clip;touch-action:pan-y pinch-zoom}
+  main,body{overflow-x:clip;touch-action:pan-y pinch-zoom}
   #bnav{will-change:transform;transform:translateZ(0);contain:layout style}
   body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   input,textarea,select,[contenteditable],.sel,.sel *{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
@@ -440,7 +440,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.5.0';
+const WERSJA_APLIKACJI = '0.5.1';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -1144,13 +1144,14 @@ pushSluchaj();
       if (/^(INPUT|TEXTAREA|SELECT|CANVAS|VIDEO)$/.test(el.tagName) || el.isContentEditable || el.dataset.noswipe != null) return true;
       if (el.scrollWidth > el.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true; }
     return false; };
-  m.addEventListener('touchstart', e => {
+  document.addEventListener('touchstart', e => {
     x0 = null; if (e.touches.length !== 1 || !D || !glowna() || LS.get('swipe') === '0') return;
     if (document.getElementById('ark').classList.contains('on')) return;
+    if (e.target.closest && e.target.closest('#bnav,#hd,#ark,#toast')) return;   // 0.5.1: gest łapiemy na całym ekranie, nie tylko tam, gdzie jest treść (main jest tak wysoki jak treść)
     const t = e.touches[0]; if (t.clientX < 24 || t.clientX > window.innerWidth - 24 || blok(e.target)) return;
     x0 = t.clientX; y0 = t.clientY; t0 = e.timeStamp; dx = 0; kier = 0;
   }, { passive: true });
-  m.addEventListener('touchmove', e => {
+  document.addEventListener('touchmove', e => {
     if (x0 == null) return; const t = e.touches[0], ax = t.clientX - x0, ay = t.clientY - y0;
     if (!kier) { if (Math.abs(ax) < 10 && Math.abs(ay) < 10) return; kier = Math.abs(ax) > Math.abs(ay) * 1.25 ? 1 : -1; if (kier < 0) { x0 = null; return; } m.style.transition = 'none'; }
     dx = ax; const i = TABS.findIndex(x => x[0] === TAB), kraniec = (dx > 0 && i === 0) || (dx < 0 && i === TABS.length - 1);
@@ -1175,8 +1176,8 @@ pushSluchaj();
       setTimeout(() => m.style.transition = '', 260);
     }, 125);
   };
-  m.addEventListener('touchend', koniec, { passive: true });
-  m.addEventListener('touchcancel', () => { x0 = null; m.style.transform = ''; }, { passive: true });
+  document.addEventListener('touchend', koniec, { passive: true });
+  document.addEventListener('touchcancel', () => { x0 = null; m.style.transform = ''; }, { passive: true });
 })();
 /* ---------- 0.5.0: gest „wstecz” systemu Androida – jak w Serwis myjni ----------
  * Zawsze jest jeden wpis „straż” w historii. Wstecz zamyka kolejno: okno na dole → ekran SOS → podstronę (Настройки, Система) → poprzednią zakładkę → «Сегодня».
