@@ -22,14 +22,25 @@
     let h = '<div class="card"><h3>' + I('pin', 1) + 'Дорога<button class="btn2 mal" onclick="go(\'wiecej\');podstrona(\'droga\')">' + I('gear', 1) + 'Места</button></h3>';
     if (l.length) h += l.slice(0, 4).map(m => przyciskMiejsca(m, false)).join('');
     else h += '<div class="mute" style="margin-bottom:10px">Добавь места, куда ходишь чаще всего (дом, работа, магазин) — тогда маршрут будет открываться одним нажатием.</div>';
-    h += '<button class="btn2 szer" style="min-height:54px" onclick="drogaZgubiona()">' + I('alert', 1) + ' Не знаю, куда идти</button></div>';
+    h += '<button class="btn2 szer" style="min-height:54px" onclick="drogaZgubiona()">' + I('alert', 1) + ' ' + drogaKomu() + '</button></div>';
     return h;
   };
 
-  // «Не знаю, куда идти»
+  // «Отправить Васе, где я» (имя в дательном падеже; если родителей несколько или имя нетипичное — «родителям»)
+  function drogaDat(im) {
+    if (/я$/.test(im)) return im.slice(0, -1) + 'е';
+    if (/а$/.test(im)) return im.slice(0, -1) + 'е';
+    return null;
+  }
+  function drogaKomu() {
+    const rodz = (D.ludzie || []).filter(p => p.rola === 'rodzic' && p.id !== D.ja.id).map(p => p.imie);
+    const kogo = rodz.length === 1 ? drogaDat(rodz[0]) : null;
+    return 'Отправить ' + (kogo || 'родителям') + ', где я';
+  }
   window.drogaZgubiona = function () {
     const rodz = (D.ludzie || []).filter(p => p.rola === 'rodzic' && p.id !== D.ja.id).map(p => p.imie);
-    ark('<h4>Не знаю, куда идти</h4><div style="margin-bottom:14px">Отправлю твою точку на карте' + (rodz.length ? ': ' + esc(rodz.join(', ')) : '') + '. Они увидят, где ты, и помогут.</div>' +
+    const kogo = rodz.length === 1 ? drogaDat(rodz[0]) : null;
+    ark('<h4>' + esc(drogaKomu()) + '</h4><div style="margin-bottom:14px">Отправлю твою точку на карте ' + esc(kogo || 'родителям') + '</div>' +
       '<div class="ab"><button class="btn" id="dgOk" onclick="drogaWyslij()">' + I('check', 1) + ' Отправить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
   };
   window.drogaWyslij = function () {
