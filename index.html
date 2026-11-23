@@ -461,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.7.0';
+const WERSJA_APLIKACJI = '0.7.1';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -657,6 +657,7 @@ function wDzis() {
     h += '<div class="card"><button class="btn jade" onclick="jade()">' + I('car2') + ' Еду домой</button>' +
       '<div class="seg" style="margin:12px 0 0">' + [0, 20, 40, 60].map(m => '<button class="' + (JADE_MIN === m ? 'on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
   }
+  if (D.wydatkiOk && window.wydFoto) h += '<label class="btn szer" style="min-height:60px;font-size:18px;margin-bottom:14px"><input type="file" accept="image/*" capture="environment" hidden onchange="wydFoto(this)">' + I('camera', 1) + ' Сфотографировать чек</label>';
   if (window.drogaKarta) h += drogaKarta();
   const kuch = (D.zadania || []).filter(z => z.typ === 'kuchnia' && z.status === 'nowe');
   kuch.filter(z => z.dla === D.ja.id).forEach(z => {
