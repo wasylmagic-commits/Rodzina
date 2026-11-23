@@ -413,7 +413,7 @@
  * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.3.1';
+const WERSJA_APLIKACJI = '0.3.2';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -1027,7 +1027,7 @@ async function pushWlacz() {
     const reg = await navigator.serviceWorker.ready;
     const t = await firebase.messaging().getToken({ vapidKey: FB.vapidKey, serviceWorkerRegistration: reg });
     await api('pushToken', { t: t });
-    D.ja.push = true; render(); toast('Уведомления включены');
+    D.ja.push = true; render(); toast('Уведомления включены'); pushSluchaj();
   } catch (e) { toast('Не вышло: ' + e.message); }
 }
 
@@ -1039,6 +1039,22 @@ async function pushTest() {
   } catch (e) { toast('Не вышло: ' + e.message); }
 }
 
+/* пуш при открытом приложении: Firebase не показывает его сам, поэтому показываем уведомление и всплывашку */
+async function pushSluchaj() {
+  if (!window.FB || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const v = '10.12.2';
+    await skrypt('https://www.gstatic.com/firebasejs/' + v + '/firebase-app-compat.js');
+    await skrypt('https://www.gstatic.com/firebasejs/' + v + '/firebase-messaging-compat.js');
+    if (!firebase.apps.length) firebase.initializeApp(FB.config);
+    firebase.messaging().onMessage(m => {
+      const n = m.notification || {};
+      toast((n.title ? n.title + ': ' : '') + (n.body || ''));
+      navigator.serviceWorker.ready.then(r => r.showNotification(n.title || 'Семья', { body: n.body || '', icon: 'icon-192.png' })).catch(() => {});
+    });
+  } catch (e) {}
+}
+
 /* ---------- start ---------- */
 document.getElementById('logo').innerHTML = I('home');
 document.getElementById('odsw').innerHTML = I('refresh');
@@ -1046,6 +1062,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('ark').classList.contains('on')) load(); });
 nav();
 load();
+pushSluchaj();
 </script>
 </body>
 </html>
