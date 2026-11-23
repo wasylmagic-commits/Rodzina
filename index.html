@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Семья</title>
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  /* Семья v0.1 — тот же «стеклянный» стиль, что у Serwis myjni, тёплый акцент */
+  :root{--bg:#f2f2f7;--card:rgba(255,255,255,.7);--solid:#fff;--ink:#000;--mute:rgba(60,60,67,.62);--line:rgba(60,60,67,.14);
+    --acc:#ff7a1a;--acc2:rgba(255,122,26,.13);--grn:#248a3d;--grnbg:rgba(52,199,89,.16);--red:#ff3b30;--redbg:rgba(255,59,48,.12);
+    --fill:rgba(118,118,128,.12);--sh:0 8px 28px rgba(0,0,0,.07);--r:22px;
+    --b1:rgba(255,149,0,.26);--b2:rgba(255,45,85,.16);--b3:rgba(52,199,89,.14);
+    --f:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,sans-serif}
+  @media (prefers-color-scheme:dark){:root{--bg:#000;--card:rgba(44,44,48,.55);--solid:#1c1c1e;--ink:#fff;--mute:rgba(235,235,245,.6);--line:rgba(84,84,88,.5);
+    --acc:#ff9f0a;--acc2:rgba(255,159,10,.2);--grn:#30d158;--grnbg:rgba(48,209,88,.18);--red:#ff453a;--redbg:rgba(255,69,58,.2);--fill:rgba(118,118,128,.24);
+    --sh:0 10px 30px rgba(0,0,0,.45);--b1:rgba(255,159,10,.22);--b2:rgba(255,55,95,.16);--b3:rgba(48,209,88,.1)}}
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.35 var(--f);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+    padding:calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 96px)}
+  body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;filter:blur(30px);
+    background:radial-gradient(40% 30% at 85% 8%,var(--b1),transparent 70%),radial-gradient(45% 35% at 5% 40%,var(--b2),transparent 70%),radial-gradient(40% 30% at 80% 80%,var(--b3),transparent 70%)}
+  button{font:inherit;color:inherit;cursor:pointer;border:0;transition:transform .25s}
+  button:active{transform:scale(.96)}
+  button:disabled{opacity:.45}
+  input,select{font:inherit;color:inherit;width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--solid);outline:none}
+  input:focus,select:focus{border-color:var(--acc)}
+  header{display:flex;align-items:center;gap:10px;margin:6px 2px 14px}
+  header h1{font-size:30px;margin:0;flex:1;letter-spacing:-.5px}
+  .ib{width:40px;height:40px;border-radius:50%;background:var(--card);box-shadow:var(--sh);font-size:18px}
+  .card{background:var(--card);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+    border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px;margin-bottom:12px}
+  .card h3{margin:0 0 8px;font-size:15px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.3px}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .card h3+.row,.card .row:first-child{border-top:0}
+  .g{flex:1;min-width:0}
+  .mute{color:var(--mute);font-size:14px}
+  .t{font-weight:500}
+  .done .t{text-decoration:line-through;opacity:.5}
+  .btn{background:var(--acc);color:#fff;border-radius:14px;padding:12px 18px;font-weight:600}
+  .btn2{background:var(--fill);border-radius:14px;padding:10px 14px;font-weight:500}
+  .chk{width:28px;height:28px;border-radius:50%;border:2px solid var(--mute);background:transparent;flex:0 0 auto;font-size:15px;line-height:1}
+  .done .chk{background:var(--grn);border-color:var(--grn);color:#fff}
+  .x{background:transparent;color:var(--mute);font-size:20px;padding:4px 8px}
+  .pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:10px;background:var(--fill);margin-right:4px}
+  .pill.a{background:var(--acc2);color:var(--acc)}
+  .empty{color:var(--mute);text-align:center;padding:12px 0;font-size:15px}
+  .jade{width:100%;background:linear-gradient(135deg,#ff9500,#ff2d55);color:#fff;font-size:22px;font-weight:700;border-radius:20px;padding:20px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{background:var(--fill);border-radius:16px;padding:8px 14px;font-size:15px}
+  .chip.on{background:var(--acc);color:#fff}
+  .seria{display:flex;align-items:center;gap:14px}
+  .seria b{font-size:38px;line-height:1}
+  .bar{height:8px;border-radius:4px;background:var(--fill);overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--acc);border-radius:4px}
+  .szybko{display:flex;gap:8px;margin-bottom:12px}
+  .szybko input{border-radius:20px;background:var(--card);box-shadow:var(--sh);border:0}
+  .szybko button{flex:0 0 auto;width:48px;border-radius:50%;background:var(--acc);color:#fff;font-size:22px}
+  .pw.nowe .t{font-weight:700}
+  .pw.nowe::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--acc);flex:0 0 auto}
+  .dzien{font-size:14px;font-weight:600;color:var(--acc);margin:14px 4px 6px}
+  #nav{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:space-around;
+    background:var(--card);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border-radius:28px;box-shadow:var(--sh);padding:6px;z-index:9}
+  #nav button{flex:1;background:transparent;border-radius:22px;padding:6px 0;font-size:12px;color:var(--mute)}
+  #nav button span{display:block;font-size:22px;line-height:1.2}
+  #nav button.on{background:var(--acc2);color:var(--acc)}
+  #nav .licz{background:var(--red);color:#fff;border-radius:9px;font-size:11px;padding:0 5px;margin-left:2px}
+  #ark{position:fixed;inset:0;z-index:20;display:none}
+  #ark.on{display:block}
+  #ark .tlo{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+  #ark .ar{position:absolute;left:0;right:0;bottom:0;background:var(--solid);border-radius:24px 24px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 18px);max-height:88vh;overflow:auto}
+  #ark h4{margin:0 0 12px;font-size:20px}
+  #ark label{display:block;font-size:14px;color:var(--mute);margin:10px 2px 4px}
+  .ab{display:flex;gap:10px;margin-top:16px}
+  .ab button{flex:1}
+  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:18px;font-size:15px;z-index:30;opacity:0;transition:opacity .3s;pointer-events:none;max-width:88%;text-align:center}
+  #toast.on{opacity:1}
+  .wait{opacity:.5;pointer-events:none}
+</style>
+</head>
+<body>
+<header><h1 id="tyt">Семья</h1><button class="ib" id="pushb" onclick="pushWlacz()" title="Уведомления" style="display:none">🔔</button><button class="ib" onclick="load(true)" title="Обновить">↻</button></header>
+<div id="szb" class="szybko" style="display:none"><input id="szt" placeholder="Скажи или напиши: «стоматолог Насти в четверг в 16»" onkeydown="if(event.key==='Enter')szybko()"><button onclick="szybko()">＋</button></div>
+<main id="app"><div class="empty">Загружаю…</div></main>
+<nav id="nav"></nav>
+<div id="ark"></div>
+<div id="toast"></div>
+<script src="config.js"></script>
+<script>
+const LS = { get: k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+(function () {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('k')) LS.set('k', h.get('k'));
+  if (h.get('u') && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(h.get('u'))) LS.set('u', h.get('u'));
+  if (location.hash) history.replaceState(null, '', location.pathname);
+})();
+const K = LS.get('k'), API = LS.get('u');
+let D = null, TAB = LS.get('tab') || 'dzis', JADE_MIN = 0;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const jsq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2600); }
+function api(akcja, par) {
+  const q = new URLSearchParams(Object.assign({ api: akcja, k: K }, par || {}));
+  return fetch(API + '?' + q.toString(), { redirect: 'follow' }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.blad || 'ошибка сервера'); return j.wynik; });
+}
+// действие → новый стан → перерисовка
+function akcja(nazwa, par, ok) {
+  document.body.classList.add('wait');
+  return api(nazwa, par).then(w => { if (w && w.ja) { D = w; render(); } if (ok) toast(ok); return w; })
+    .catch(e => toast(e.message)).finally(() => document.body.classList.remove('wait'));
+}
+function load(reczne) {
+  if (!K || !API) { document.getElementById('app').innerHTML = '<div class="card"><div class="t">Открой приложение по своей личной ссылке</div><div class="mute">Ссылку даёт Вася. После первого открытия она запоминается.</div></div>'; return; }
+  return api('start').then(w => { D = w; render(); if (reczne) toast('Обновлено'); }).catch(e => { if (!D) document.getElementById('app').innerHTML = '<div class="card"><div class="t">Нет связи с сервером</div><div class="mute">' + esc(e.message) + '</div></div>'; else if (reczne) toast(e.message); });
+}
+
+// ---------- помощники
+const DNI = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], MIES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const dt = s => new Date(String(s).slice(0, 10) + 'T12:00');
+function dzienTekst(s) {
+  const d = dt(s), dz = dt(D.dzis), r = Math.round((d - dz) / 864e5);
+  const base = DNI[d.getDay()] + ', ' + d.getDate() + ' ' + MIES[d.getMonth()];
+  return r === 0 ? 'Сегодня · ' + base : r === 1 ? 'Завтра · ' + base : base;
+}
+const imie = id => { const o = (D.ludzie || []).find(x => x.id === id); return o ? o.imie : id; };
+function ktoTekst(kto) { return kto === 'wszyscy' ? 'все' : String(kto).split(',').map(imie).join(', '); }
+const mojeW = w => w.kto === 'wszyscy' || String(w.kto).split(',').indexOf(D.ja.id) >= 0;
+function arkZamknij() { document.getElementById('ark').classList.remove('on'); }
+function ark(html) { const a = document.getElementById('ark'); a.innerHTML = '<div class="tlo" onclick="arkZamknij()"></div><div class="ar">' + html + '</div>'; a.classList.add('on'); }
+
+// ---------- рендер
+const TABS = [['dzis', '🏠', 'Сегодня'], ['kal', '📅', 'Календарь'], ['zak', '🛒', 'Покупки'], ['zad', '✅', 'Задачи']];
+function render() {
+  if (!D) return;
+  document.getElementById('tyt').textContent = TAB === 'dzis' ? 'Привет, ' + D.ja.imie : TABS.find(t => t[0] === TAB)[2];
+  document.getElementById('szb').style.display = D.szybko ? 'flex' : 'none';
+  document.getElementById('pushb').style.display = window.FB && !D.ja.push && 'Notification' in window ? '' : 'none';
+  const nowe = D.powiadomienia.filter(p => p.status === 'nowe').length, zakN = D.zakupy.filter(z => !z.kupione).length;
+  const mojeZad = D.zadania.filter(z => z.status === 'nowe' && z.dla === D.ja.id).length;
+  const licz = { dzis: nowe, zak: zakN, zad: mojeZad };
+  document.getElementById('nav').innerHTML = TABS.map(t => '<button class="' + (TAB === t[0] ? 'on' : '') + '" onclick="tab(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] +
+    (licz[t[0]] ? '<em class="licz">' + licz[t[0]] + '</em>' : '') + '</button>').join('');
+  document.getElementById('app').innerHTML = ({ dzis: rDzis, kal: rKal, zak: rZak, zad: rZad })[TAB]();
+}
+function tab(t) { TAB = t; LS.set('tab', t); render(); scrollTo(0, 0); }
+
+function rDzis() {
+  let h = '';
+  if (D.jade) {
+    h += '<div class="card"><button class="jade" onclick="jade()">🚗 Еду домой</button>' +
+      '<div class="chips">' + [0, 20, 40, 60].map(m => '<button class="chip' + (JADE_MIN === m ? ' on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
+  }
+  const kuch = D.zadania.filter(z => z.typ === 'kuchnia' && z.status === 'nowe');
+  kuch.filter(z => z.dla === D.ja.id).forEach(z => {
+    h += '<div class="card" style="border:2px solid var(--acc)"><h3>🍳 Срочно</h3><div class="row"><div class="g"><div class="t">' + esc(z.tytul) + '</div></div></div>' +
+      '<button class="btn" style="width:100%;margin-top:6px" onclick="akcja(\'zadanieZrobione\',{id:\'' + jsq(z.id) + '\'},\'Молодец! Мама получит уведомление\')">Готово ✓</button></div>';
+  });
+  kuch.filter(z => z.dla !== D.ja.id).forEach(z => { h += '<div class="card"><div class="mute">🍳 ' + esc(imie(z.dla)) + ' получила задание по кухне, ещё не готово</div></div>'; });
+  if (D.ja.rola === 'dziecko' || D.seria.dni > 0) {
+    const s = D.seria, c1 = D.serieCel[0], c2 = D.serieCel[1], cel = s.dni < c1 ? c1 : c2;
+    const nagroda = s.dni < c1 ? 'выбор блюда на выходные' : s.dni < c2 ? 'совместный шопинг' : 'месяц без пропусков — шопинг заработан! 🎉';
+    h += '<div class="card"><h3>' + (D.ja.rola === 'dziecko' ? 'Твоя серия' : 'Серия ' + esc(imie('nastya'))) + '</h3><div class="seria"><b>🔥 ' + s.dni + '</b><div class="g"><div class="t">' +
+      (s.dni >= c2 ? nagroda : 'до «' + nagroda + '» — ' + (cel - s.dni) + ' дн.') + '</div><div class="bar"><i style="width:' + Math.min(100, s.dni / cel * 100) + '%"></i></div></div></div></div>';
+  }
+  const dz = D.wydarzenia.filter(w => w.start.slice(0, 10) === D.dzis);
+  h += '<div class="card"><h3>Сегодня</h3>' + (dz.length ? dz.map(wiersWyd).join('') : '<div class="empty">Ничего не запланировано</div>') + '</div>';
+  const jutro = D.wydarzenia.filter(w => w.start.slice(0, 10) > D.dzis).slice(0, 3);
+  if (jutro.length) h += '<div class="card"><h3>Скоро</h3>' + jutro.map(w => wiersWyd(w, 1)).join('') + '</div>';
+  const zad = D.zadania.filter(z => z.status === 'nowe' && z.dla === D.ja.id && z.typ !== 'kuchnia');
+  if (zad.length) h += '<div class="card"><h3>Мои задачи</h3>' + zad.map(wiersZad).join('') + '</div>';
+  const pw = D.powiadomienia.slice(0, 12);
+  h += '<div class="card"><h3>Сообщения' + (pw.some(p => p.status === 'nowe') ? ' <button class="btn2" style="float:right;font-size:13px;padding:4px 10px;text-transform:none" onclick="akcja(\'pwCzytaj\',{ids:\'wszystkie\'})">прочитал</button>' : '') + '</h3>' +
+    (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + esc(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty">Пока тихо</div>') + '</div>';
+  return h;
+}
+
+function wiersWyd(w, zData) {
+  return '<div class="row"><div style="font-weight:600;min-width:52px">' + esc(w.start.slice(11, 16)) + '</div><div class="g"><div class="t">' + esc(w.tytul) + '</div><div class="mute">' +
+    (zData ? esc(dzienTekst(w.start)) + ' · ' : '') + esc(ktoTekst(w.kto)) + (w.miejsce ? ' · ' + esc(w.miejsce) : '') + (Number(w.przyp) ? ' · ⏰' : '') + '</div></div>' +
+    '<button class="x" onclick="usunWyd(\'' + jsq(w.id) + '\')">×</button></div>';
+}
+function rKal() {
+  let h = '<button class="btn" style="width:100%;margin-bottom:12px" onclick="formWyd()">＋ Событие</button>';
+  if (!D.wydarzenia.length) return h + '<div class="card"><div class="empty">В календаре пусто. Добавь первое событие.</div></div>';
+  let dz = '';
+  D.wydarzenia.forEach(w => {
+    const d = w.start.slice(0, 10);
+    if (d !== dz) { if (dz) h += '</div>'; dz = d; h += '<div class="dzien">' + esc(dzienTekst(d)) + '</div><div class="card">'; }
+    h += wiersWyd(w);
+  });
+  return h + '</div>';
+}
+function usunWyd(id) { if (confirm('Удалить событие?')) akcja('wydarzenieUsun', { id: id }, 'Удалено'); }
+function chipsKto(id, zazn) {
+  return '<div class="chips" id="' + id + '">' + [['wszyscy', 'Все']].concat(D.ludzie.map(o => [o.id, o.imie])).map(o =>
+    '<button type="button" class="chip' + (zazn.indexOf(o[0]) >= 0 ? ' on' : '') + '" data-v="' + o[0] + '" onclick="chipKlik(this)">' + esc(o[1]) + '</button>').join('') + '</div>';
+}
+function chipKlik(b) {
+  const box = b.parentNode, all = b.dataset.v === 'wszyscy';
+  if (box.dataset.jeden) { box.querySelectorAll('.chip').forEach(c => c.classList.remove('on')); b.classList.add('on'); return; }
+  box.querySelectorAll('.chip').forEach(c => { if (all ? c !== b : c.dataset.v === 'wszyscy') c.classList.remove('on'); });
+  b.classList.toggle('on');
+}
+const chipsWartosc = id => { const v = [...document.querySelectorAll('#' + id + ' .chip.on')].map(c => c.dataset.v); return v.indexOf('wszyscy') >= 0 || !v.length ? 'wszyscy' : v.join(','); };
+function formWyd(w) {
+  w = w || {};
+  const s = w.start || '', przyp = w.przyp == null ? 60 : Number(w.przyp);
+  ark('<h4>Новое событие</h4><label>Что</label><input id="wT" value="' + esc(w.tytul || '') + '" placeholder="Стоматолог, экзамен, поездка…">' +
+    '<div style="display:flex;gap:8px"><div class="g"><label>Дата</label><input id="wD" type="date" value="' + esc(s.slice(0, 10) || D.dzis) + '"></div>' +
+    '<div class="g"><label>Время</label><input id="wG" type="time" value="' + esc(s.slice(11, 16) || '') + '"></div></div>' +
+    '<label>Для кого</label>' + chipsKto('wK', String(w.kto || 'wszyscy').split(',')) +
+    '<label>Где</label><input id="wM" value="' + esc(w.miejsce || '') + '" placeholder="необязательно">' +
+    '<label>Напомнить</label><select id="wP">' + [[0, 'не напоминать'], [15, 'за 15 минут'], [60, 'за час'], [180, 'за 3 часа'], [1440, 'за день']].map(o =>
+      '<option value="' + o[0] + '"' + (o[0] === przyp ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Отмена</button><button class="btn" onclick="zapiszWyd()">Сохранить</button></div>');
+}
+function zapiszWyd() {
+  const t = document.getElementById('wT').value.trim(), d = document.getElementById('wD').value, g = document.getElementById('wG').value;
+  if (!t || !d || !g) return toast('Нужно: что, дата и время');
+  akcja('wydarzenieDodaj', { tytul: t, start: d + 'T' + g, kto: chipsWartosc('wK'), miejsce: document.getElementById('wM').value.trim(), przyp: document.getElementById('wP').value }, 'Сохранено')
+    .then(w => { if (w && w.ja) arkZamknij(); });
+}
+
+function rZak() {
+  const nie = D.zakupy.filter(z => !z.kupione), tak = D.zakupy.filter(z => z.kupione);
+  let h = '<div class="szybko"><input id="zN" placeholder="Молоко, хлеб, таблетки…" onkeydown="if(event.key===\'Enter\')dodajZak()"><button onclick="dodajZak()">＋</button></div>';
+  h += '<div class="card"><h3>Купить · ' + nie.length + '</h3>' + (nie.length ? nie.map(wiersZak).join('') : '<div class="empty">Всё куплено 👌</div>') + '</div>';
+  if (tak.length) h += '<div class="card"><h3>Куплено</h3>' + tak.map(wiersZak).join('') +
+    '<button class="btn2" style="width:100%;margin-top:8px" onclick="akcja(\'zakupyWyczysc\',{},\'Убрано\')">Убрать купленное</button></div>';
+  return h;
+}
+function wiersZak(z) {
+  return '<div class="row' + (z.kupione ? ' done' : '') + '"><button class="chk" onclick="akcja(\'zakupKlik\',{id:\'' + jsq(z.id) + '\'})">' + (z.kupione ? '✓' : '') + '</button>' +
+    '<div class="g"><div class="t">' + esc(z.nazwa) + '</div><div class="mute">' + (z.kupione ? 'купил(а) ' + esc(imie(z.kupil)) : 'добавил(а) ' + esc(imie(z.dodal))) + '</div></div></div>';
+}
+function dodajZak() { const e = document.getElementById('zN'), v = e.value.trim(); if (!v) return; akcja('zakupDodaj', { nazwa: v }).then(() => { const n = document.getElementById('zN'); if (n) n.focus(); }); }
+
+function rZad() {
+  const nowe = D.zadania.filter(z => z.status === 'nowe'), zr = D.zadania.filter(z => z.status === 'zrobione');
+  const moje = nowe.filter(z => z.dla === D.ja.id), inne = nowe.filter(z => z.dla !== D.ja.id);
+  let h = '<button class="btn" style="width:100%;margin-bottom:12px" onclick="formZad()">＋ Задача</button>';
+  h += '<div class="card"><h3>Мои</h3>' + (moje.length ? moje.map(wiersZad).join('') : '<div class="empty">Свободен(на) 🙂</div>') + '</div>';
+  if (inne.length) h += '<div class="card"><h3>У других</h3>' + inne.map(wiersZad).join('') + '</div>';
+  if (zr.length) h += '<div class="card"><h3>Сделано за сутки</h3>' + zr.map(wiersZad).join('') + '</div>';
+  return h;
+}
+function wiersZad(z) {
+  const zr = z.status === 'zrobione', moge = z.dla === D.ja.id;
+  const po = z.termin && z.termin < D.dzis && !zr;
+  return '<div class="row' + (zr ? ' done' : '') + '">' + (moge && !zr ? '<button class="chk" onclick="akcja(\'zadanieZrobione\',{id:\'' + jsq(z.id) + '\'},\'Сделано\')"></button>' : '<button class="chk" disabled>' + (zr ? '✓' : '') + '</button>') +
+    '<div class="g"><div class="t">' + (z.typ === 'kuchnia' ? '🍳 ' : '') + esc(z.tytul) + '</div><div class="mute">' +
+    (z.dla !== D.ja.id ? 'для ' + esc(imie(z.dla)) + ' · ' : '') + (z.od && z.od !== D.ja.id ? 'от ' + esc(imie(z.od)) + ' · ' : '') +
+    (z.termin ? '<span style="' + (po ? 'color:var(--red)' : '') + '">до ' + esc(dzienTekst(z.termin).replace('Сегодня · ', 'сегодня, ').replace('Завтра · ', 'завтра, ')) + '</span>' : '') + '</div></div>' +
+    (!zr && (z.od === D.ja.id || D.ja.rola === 'rodzic') && z.typ !== 'kuchnia' ? '<button class="x" onclick="if(confirm(\'Удалить задачу?\'))akcja(\'zadanieUsun\',{id:\'' + jsq(z.id) + '\'})">×</button>' : '') + '</div>';
+}
+function formZad(z) {
+  z = z || {};
+  ark('<h4>Новая задача</h4><label>Что сделать</label><input id="zT" value="' + esc(z.tytul || '') + '">' +
+    '<label>Кому</label>' + chipsKto('zK', [z.dla || D.ja.id]).replace('<div class="chips"', '<div class="chips" data-jeden="1"').replace(/<button[^>]*data-v="wszyscy"[^>]*>Все<\/button>/, '') +
+    '<label>Срок</label><input id="zD" type="date" value="' + esc(z.termin || '') + '">' +
+    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Отмена</button><button class="btn" onclick="zapiszZad()">Сохранить</button></div>');
+}
+function zapiszZad() {
+  const t = document.getElementById('zT').value.trim(); if (!t) return toast('Напиши, что сделать');
+  const dla = (document.querySelector('#zK .chip.on') || {}).dataset;
+  akcja('zadanieDodaj', { tytul: t, dla: dla ? dla.v : D.ja.id, termin: document.getElementById('zD').value }, 'Сохранено').then(w => { if (w && w.ja) arkZamknij(); });
+}
+
+function jade() {
+  akcja('jadeDomu', { min: JADE_MIN }, 'Готово, дома знают 🚗');
+}
+
+// ---------- быстрое добавление текстом (Claude разбирает, ты подтверждаешь)
+let PROP = null;
+function szybko() {
+  const e = document.getElementById('szt'), t = e.value.trim(); if (!t) return;
+  document.body.classList.add('wait');
+  api('szybko', { tekst: t }).then(p => {
+    PROP = p;
+    if (p.typ === 'niejasne') return ark('<h4>Уточни</h4><div>' + esc(p.pytanie || 'Не понял, напиши подробнее') + '</div><div class="ab"><button class="btn" onclick="arkZamknij();document.getElementById(\'szt\').focus()">Ок</button></div>');
+    const opis = p.podsumowanie || (p.typ === 'zakupy' ? (p.pozycje || []).join(', ') : p.tytul);
+    const typ = { wydarzenie: '📅 Событие', zakupy: '🛒 В покупки', zadanie: '✅ Задача' }[p.typ] || p.typ;
+    ark('<h4>' + typ + '</h4><div class="t" style="font-size:19px">' + esc(opis) + '</div><div class="mute" style="margin-top:4px">Верно?</div>' +
+      '<div class="ab"><button class="btn2" onclick="szybkoPopraw()">Поправить</button><button class="btn" onclick="szybkoTak()">Да, сохранить</button></div>');
+  }).catch(err => toast(err.message)).finally(() => document.body.classList.remove('wait'));
+}
+function szybkoTak() {
+  const p = PROP, e = document.getElementById('szt'); arkZamknij();
+  const po = w => { if (w && w.ja) e.value = ''; };
+  if (p.typ === 'wydarzenie') akcja('wydarzenieDodaj', { tytul: p.tytul, start: p.start, kto: p.kto || 'wszyscy', miejsce: p.miejsce || '', przyp: p.przyp || 0 }, 'В календаре').then(po);
+  else if (p.typ === 'zakupy') akcja('zakupDodaj', { nazwa: (p.pozycje || []).join(',') }, 'В списке покупок').then(po);
+  else if (p.typ === 'zadanie') akcja('zadanieDodaj', { tytul: p.tytul, dla: p.dla || D.ja.id, termin: p.termin || '' }, 'Задача сохранена').then(po);
+}
+function szybkoPopraw() {
+  const p = PROP;
+  if (p.typ === 'wydarzenie') formWyd(p);
+  else if (p.typ === 'zadanie') formZad(p);
+  else { arkZamknij(); tab('zak'); setTimeout(() => { const n = document.getElementById('zN'); if (n) { n.value = (p.pozycje || []).join(', '); n.focus(); } }, 50); }
+}
+
+// ---------- пуш-уведомления (Firebase; включаются, когда в config.js есть ключи)
+function skrypt(src) { return new Promise((ok, bl) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bl; document.head.appendChild(s); }); }
+async function pushWlacz() {
+  if (!window.FB) return toast('Уведомления ещё не настроены');
+  try {
+    if (await Notification.requestPermission() !== 'granted') return toast('Без разрешения уведомления не придут');
+    const v = '10.12.2';
+    await skrypt('https://www.gstatic.com/firebasejs/' + v + '/firebase-app-compat.js');
+    await skrypt('https://www.gstatic.com/firebasejs/' + v + '/firebase-messaging-compat.js');
+    if (!firebase.apps.length) firebase.initializeApp(FB.config);
+    const reg = await navigator.serviceWorker.ready;
+    const t = await firebase.messaging().getToken({ vapidKey: FB.vapidKey, serviceWorkerRegistration: reg });
+    await api('pushToken', { t: t });
+    D.ja.push = true; render(); toast('Уведомления включены 🔔');
+  } catch (e) { toast('Не вышло: ' + e.message); }
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+setInterval(() => { if (!document.hidden && !document.getElementById('ark').classList.contains('on')) load(); }, 60000);
+load();
+</script>
+</body>
+</html>
