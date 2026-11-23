@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.8.0, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.8.1, 23.11.2026
+ * 0.8.1: wydatki: „kto kupił” — domyślnie ten, kto zrobił zdjęcie paragonu (można zmienić), podsumowanie miesiąca według osób.
  * 0.8.0: „Droga” — arkusz Miejsca (miejsca z adresem i sposobem dojazdu, na osobę lub wspólne), „Не знаю, куда идти” (zgubiona: punkt GPS → pilny push do rodziców); „Gdzie co kupić” tylko dla wybranego typu zakupów (parametr dzialy).
  * 0.7.0: import paragonów z plików JSON (fiskalny JSON z aplikacji Biedronka) z folderu Rodzina_Dokumenty/Paragony — bez API, tylko nazwy towarów idą do Claude (tani zapytanie tekstowe); ceny jednostkowe po rabatach → Ceny, suma → Wydatki.
  * 0.6.0: koniec ręcznego przypisywania sklepu do pozycji; arkusz Plan: „Gdzie co kupić” (akcje z sieci jednym zapytaniem na całą listę + ostatnie ceny z paragonów), ranking sklepów liczy aplikacja.
@@ -23,7 +24,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.8.0';
+const WERSJA = '0.8.1';
 const SCHEMAT = '8';
 
 const ARKUSZE = {
@@ -339,7 +340,7 @@ const API = {
     const kat = KAT_WYDATKOW.some(k => k[0] === p.kategoria) ? p.kategoria : 'inne';
     const id = idKlienta_(p.id, 'Wydatki');
     dodaj_('Wydatki', { id: id, data: data, kwota: kwota.toFixed(2), kategoria: kat, sklep: String(p.sklep || '').slice(0, 60), opis: String(p.opis || '').slice(0, 200),
-      kto: ja.id, zrodlo: p.zrodlo === 'paragon' ? 'paragon' : 'reczne', czas: teraz_() });
+      kto: (p.kto && wiersze_('Ludzie').some(x => x.id === p.kto && x.rola === 'rodzic')) ? p.kto : ja.id, zrodlo: p.zrodlo === 'paragon' ? 'paragon' : 'reczne', czas: teraz_() });
     let poz = []; try { poz = JSON.parse(p.pozycje || '[]'); } catch (e) {}
     (Array.isArray(poz) ? poz : []).slice(0, 80).forEach(x => {
       const cena = liczba_(x.cena); const produkt = norm_(x.produkt || x.nazwa);
@@ -1046,7 +1047,7 @@ function wydatkiMiesiac_(mies) {
   const poKat = grupuj(wMies, o => o.kategoria), poKatPoprz = {}; grupuj(wPoprz, o => o.kategoria).forEach(x => poKatPoprz[x[0]] = x[1]);
   const ludzie = {}; wiersze_('Ludzie').forEach(o => ludzie[o.id] = o.imie);
   return { mies: mies, razem: suma(wMies), poprz: suma(wPoprz), poprzMies: poprz, poKat: poKat, poKatPoprz: poKatPoprz,
-    poSklepie: grupuj(wMies, o => o.sklep).slice(0, 8), n: wMies.length, analiza: analizaCen_(mies),
+    poSklepie: grupuj(wMies, o => o.sklep).slice(0, 8), poOsobach: grupuj(wMies, o => ludzie[o.kto] || o.kto), n: wMies.length, analiza: analizaCen_(mies),
     lista: wMies.slice(0, 60).map(o => Object.assign({}, o, { ktoImie: ludzie[o.kto] || o.kto })) };
 }
 

@@ -37,6 +37,11 @@
       '<div class="mute" style="margin-top:4px">' + d.n + ' ' + (d.n === 1 ? 'запись' : 'записей') + (d.poprz ? ' · ' + MIES[Number(d.poprzMies.slice(5, 7)) - 1] + ': ' + zl(d.poprz) +
       (roznica ? ' (' + (roznica > 0 ? '+' : '−') + zl(Math.abs(roznica)) + ')' : '') : '') + '</div></div>';
     if (!d.n) return h + '<div class="card"><div class="empty mala">В этом месяце записей нет. Сфотографируй чек, остальное сделаю я.</div></div>';
+    if (d.poOsobach && d.poOsobach.length) {
+      const mo = Math.max.apply(null, d.poOsobach.map(x => x[1])) || 1;
+      h += '<div class="card"><h3>' + I('user', 1) + 'Кто сколько потратил</h3>' + d.poOsobach.map(([k, sum, n]) =>
+        '<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span>' + esc(k) + ' <span class="mute">· ' + n + '</span></span><b>' + zl(sum) + '</b></div><div class="wbar"><i style="width:' + Math.max(3, sum / mo * 100) + '%"></i></div></div>').join('') + '</div>';
+    }
     if (d.poKat.length) {
       const mx = Math.max.apply(null, d.poKat.map(x => x[1])) || 1;
       h += '<div class="card"><h3>' + I('grid', 1) + 'По категориям</h3>' + d.poKat.map(([k, sum, n]) => {
@@ -54,7 +59,7 @@
       '<div class="row"><div class="g"><b>' + esc(p) + '</b><div class="mute">' + l.map(x => esc(x[0]) + ' ' + zl(x[1])).join(' · ') + '</div></div><span class="kr" style="color:#34c759;font-weight:600">−' + zl(r) + '</span></div>').join('') + '</div>';
     else if (a.pozycji !== undefined && a.pozycji < 1) h += '<div class="card"><div class="mute">Аналитика по ценам появится, когда накопятся чеки: Claude разбирает их по позициям.</div></div>';
     h += '<div class="card"><h3>' + I('note', 1) + 'Записи</h3>' + d.lista.map(o => '<div class="row w" onclick="wydSzczegoly(\'' + jsq(o.id) + '\')"><div class="g"><div class="t">' + esc(o.sklep || o.opis || katNazwa(o.kategoria)) +
-      '</div><div class="mute">' + dm(o.data) + ' · ' + esc(katNazwa(o.kategoria)) + ' · ' + esc(o.ktoImie) + (o.zrodlo === 'paragon' ? ' · чек' : '') + '</div></div><b>' + zl(o.kwota) + '</b></div>').join('') + '</div>';
+      '</div><div class="mute"><b style="color:var(--acc)">' + esc(o.ktoImie) + '</b> · ' + dm(o.data) + ' · ' + esc(katNazwa(o.kategoria)) + (o.zrodlo === 'paragon' ? ' · чек' : '') + '</div></div><b>' + zl(o.kwota) + '</b></div>').join('') + '</div>';
     return h;
   };
 
@@ -65,19 +70,20 @@
     try {
       const im = await zdjecieB64(f, 2000);
       const p = await apiPost('paragonAnaliza', { b64: im.b64 });
-      WF = { sklep: p.sklep || '', data: p.data, kwota: String(p.suma || '').replace('.', ','), kategoria: p.kategoria || 'jedzenie', opis: '', zrodlo: 'paragon', pozycje: p.pozycje || [] };
+      WF = { kto: D.ja.id, sklep: p.sklep || '', data: p.data, kwota: String(p.suma || '').replace('.', ','), kategoria: p.kategoria || 'jedzenie', opis: '', zrodlo: 'paragon', pozycje: p.pozycje || [] };
       wydOkno();
     } catch (e) {
       arkZamknij(); toast(e.message || 'Не получилось прочитать чек');
     }
   };
-  window.wydForma = function () { WF = { sklep: '', data: D.dzis, kwota: '', kategoria: 'jedzenie', opis: '', zrodlo: 'reczne', pozycje: [] }; wydOkno(); };
+  window.wydForma = function () { WF = { kto: D.ja.id, sklep: '', data: D.dzis, kwota: '', kategoria: 'jedzenie', opis: '', zrodlo: 'reczne', pozycje: [] }; wydOkno(); };
   function wydOkno() {
     const sk = (D.sklepy || []).map(x => x[1]);
     ark('<h4>' + (WF.zrodlo === 'paragon' ? 'Проверь чек' : 'Новая трата') + '</h4>' +
       '<div class="dwa"><div><label>Сумма, zł</label><input id="wdK" class="as-in" style="width:100%" inputmode="decimal" placeholder="0,00" value="' + esc(WF.kwota) + '"></div>' +
       '<div><label>Дата</label><input id="wdD" type="date" class="as-in" style="width:100%" value="' + esc(WF.data) + '"></div></div>' +
       '<label>Магазин</label><input id="wdS" class="as-in" style="width:100%" list="wdSL" placeholder="Biedronka, Lidl, Zara…" value="' + esc(WF.sklep) + '"><datalist id="wdSL">' + sk.map(n => '<option value="' + esc(n) + '">').join('') + '</datalist>' +
+      '<label>Кто купил</label>' + chipsy('wdW', (D.ludzie || []).filter(x => x.rola === 'rodzic').map(x => [x.id, x.id === D.ja.id ? x.imie + ' (я)' : x.imie]), [WF.kto || D.ja.id], true) +
       '<label>Категория</label>' + chipsy('wdC', (D.katWyd || []).map(x => [x[0], x[1]]), [WF.kategoria], true) +
       '<label>Заметка <span class="mute">(необязательно)</span></label><input id="wdO" class="as-in" style="width:100%" value="' + esc(WF.opis) + '">' +
       (WF.pozycje.length ? '<div class="mute" style="margin-top:10px">' + I('spark', 1) + ' Нашёл позиций: <b>' + WF.pozycje.length + '</b> — цены попадут в историю (' + esc(WF.pozycje.slice(0, 4).map(x => x.produkt).join(', ')) + (WF.pozycje.length > 4 ? '…' : '') + ')</div>' : '') +
@@ -85,10 +91,11 @@
   }
   window.wydZapisz = function () {
     const kwota = (document.getElementById('wdK').value || '').trim(), data = document.getElementById('wdD').value, sklep = document.getElementById('wdS').value.trim(), opis = document.getElementById('wdO').value.trim();
+    const kto = (document.querySelector('#wdW .chip.on') || { dataset: { v: D.ja.id } }).dataset.v;
     const kat = (document.querySelector('#wdC .chip.on') || { dataset: { v: 'inne' } }).dataset.v;
     if (!(parseFloat(kwota.replace(',', '.')) > 0)) return toast('Нужна сумма');
     const b = document.getElementById('wdZ'); b.disabled = true; b.textContent = 'Записываю…';
-    apiPost('wydatekDodaj', { kwota: kwota, data: data || D.dzis, kategoria: kat, sklep: sklep, opis: opis, zrodlo: WF.zrodlo, pozycje: JSON.stringify(WF.pozycje || []) })
+    apiPost('wydatekDodaj', { kto: kto, kwota: kwota, data: data || D.dzis, kategoria: kat, sklep: sklep, opis: opis, zrodlo: WF.zrodlo, pozycje: JSON.stringify(WF.pozycje || []) })
       .then(w => { WYD.dane = w; WYD.mies = w.mies; WYD.blad = ''; WF = null; arkZamknij(); toast('Записано'); load(); })
       .catch(e => { b.disabled = false; b.innerHTML = I('check', 1) + ' Записать'; toast(e.message); });
   };

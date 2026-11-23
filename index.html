@@ -461,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.7.1';
+const WERSJA_APLIKACJI = '0.7.2';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
