@@ -37,11 +37,6 @@
       '<div class="mute" style="margin-top:4px">' + d.n + ' ' + (d.n === 1 ? 'запись' : 'записей') + (d.poprz ? ' · ' + MIES[Number(d.poprzMies.slice(5, 7)) - 1] + ': ' + zl(d.poprz) +
       (roznica ? ' (' + (roznica > 0 ? '+' : '−') + zl(Math.abs(roznica)) + ')' : '') : '') + '</div></div>';
     if (!d.n) return h + '<div class="card"><div class="empty mala">В этом месяце записей нет. Сфотографируй чек, остальное сделаю я.</div></div>';
-    if (d.poOsobach && d.poOsobach.length) {
-      const mo = Math.max.apply(null, d.poOsobach.map(x => x[1])) || 1;
-      h += '<div class="card"><h3>' + I('user', 1) + 'Кто сколько потратил</h3>' + d.poOsobach.map(([k, sum, n]) =>
-        '<div style="margin:9px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span>' + esc(k) + ' <span class="mute">· ' + n + '</span></span><b>' + zl(sum) + '</b></div><div class="wbar"><i style="width:' + Math.max(3, sum / mo * 100) + '%"></i></div></div>').join('') + '</div>';
-    }
     if (d.poKat.length) {
       const mx = Math.max.apply(null, d.poKat.map(x => x[1])) || 1;
       h += '<div class="card"><h3>' + I('grid', 1) + 'По категориям</h3>' + d.poKat.map(([k, sum, n]) => {

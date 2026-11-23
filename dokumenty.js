@@ -34,8 +34,7 @@
     let h = '<div class="dwa" style="margin-bottom:14px">' +
       '<label class="btn"><input type="file" accept="image/*" capture="environment" hidden onchange="dokZdjecia(this,1)">' + I('camera', 1) + 'Сфотографировать</label>' +
       '<label class="btn btn-j"><input type="file" accept="image/*,application/pdf" multiple hidden onchange="dokZdjecia(this,0)">' + I('upload', 1) + 'Загрузить</label></div>' +
-      '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="skanerOkno()">' + I('note', 1) + 'Сканер — ровнее и чётче</button>' +
-      (D.ja.admin ? '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="wejscieTeraz()">' + I('id', 1) + 'Разобрать «Wejscie»</button>' : '');
+      '<a class="btn2 szer" style="margin:-4px 0 14px" href="' + csLink() + '">' + I('note', 1) + 'CamScanner</a>';
     h += dokKarta();
     if (wsz.length > 6) h += '<input type="search" placeholder="Поиск по документам" value="' + esc(SZUKAJ) + '" oninput="dokSzukaj(this.value)">';
     const licz = k => wsz.filter(d => d.kategoria === k).length;
@@ -215,14 +214,16 @@
   };
 
   /* ---------- nowy dokument: zdjęcia/strony → format → opis → wysyłka ---------- */
-  // okno „Сканер”: сканируем в Google Drive (ровнее и чётче нашего) или в CamScanner → «Поделиться» → Семья
-  window.skanerOkno = () => ark('<h4>' + I('note', 1) + ' Сканер</h4>' +
-    '<div class="mute" style="margin:2px 0 12px">Лист ровнее и чётче получается в готовых сканерах. Наш встроенный остаётся для быстрых снимков («Сфотографировать»).</div>' +
-    '<div class="t" style="font-weight:600">Google Drive</div><div class="mute" style="margin:2px 0 8px">«+» → «Сканировать» → сохрани PDF в папку <b>Rodzina_Dokumenty / Wejscie</b>. Я сам разложу файл (раз в 15 минут или кнопкой «Разобрать Wejscie»).</div>' +
-    '<a class="btn szer" href="intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10000000;package=com.google.android.apps.docs;S.browser_fallback_url=https%3A%2F%2Fdrive.google.com%2Fdrive%2Fmy-drive;end">' + I('upload', 1) + ' Открыть Google Drive</a>' +
-    '<div class="t" style="font-weight:600;margin-top:16px">CamScanner</div><div class="mute" style="margin:2px 0 8px">Готовый скан → «Поделиться» → <b>Семья</b>. Документ откроется здесь, дальше как обычно: название, чей, срок. Пункт «Семья» появляется после обновления приложения (иногда нужно пару дней или переустановить иконку).</div>' +
-    '<a class="btn2 szer" href="intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10000000;package=com.intsig.camscanner;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.intsig.camscanner;end">' + I('camera', 1) + 'Открыть CamScanner</a>' +
-    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Закрыть</button></div>');
+  // CamScanner: Chrome dopuszcza tylko intent z kategorią BROWSABLE, więc ekranu startowego CamScanner otworzyć się nie da.
+  // Próbujemy link https, który CamScanner może przejąć; jeśli się nie uda, wracamy do aplikacji (?cs=0) i mówimy, co robić
+  window.csLink = () => 'intent://www.camscanner.com/#Intent;scheme=https;package=com.intsig.camscanner;S.browser_fallback_url=' +
+    encodeURIComponent(location.origin + location.pathname + '?cs=0') + ';end';
+  window.dokCsNie = () => {
+    if (!/[?&]cs=0/.test(location.search)) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    toast('CamScanner отсюда не открывается. Открой его с экрана телефона, сделай скан и нажми «Поделиться» → «Семья»');
+  };
+  window.addEventListener('load', () => setTimeout(window.dokCsNie, 600));
 
   // „Поделиться → Семья” (share_target в manifest.json, sw.js кладёт файл в cache „udostepnione”) → тот же путь, что у «Загрузить»
   window.dokUdostWczytaj = async () => {

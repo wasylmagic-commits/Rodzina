@@ -461,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.8.0';
+const WERSJA_APLIKACJI = '0.8.1';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -1121,7 +1121,8 @@ function wSystem() {
   let h = naglowek('Система', 'версия ' + WERSJA_APLIKACJI);
   h += '<div class="card"><div class="row"><div class="g">Приложение</div><b>' + WERSJA_APLIKACJI + '</b></div><div class="row"><div class="g">Сервер семьи</div><b>' + esc(D.wersja || '0.1') + '</b></div>' +
     '<div class="row"><div class="g">Ты</div><b>' + esc(D.ja.imie) + '</b></div></div>';
-  if (D.ja.admin) h += '<button class="btn szer" onclick="podstrona(\'akt\')">' + I('update', 1) + ' Обновление системы</button>';
+  if (D.ja.admin) h += '<button class="btn szer" onclick="podstrona(\'akt\')">' + I('update', 1) + ' Обновление системы</button>' +
+    '<button class="btn2 szer" style="margin-top:10px" onclick="wejscieTeraz()">' + I('id', 1) + ' Разобрать папку «Wejscie»</button>';
   return h;
 }
 function podstrona(p) { PODSTR = p; ANIM = true; render(); window.scrollTo(0, 0); }
