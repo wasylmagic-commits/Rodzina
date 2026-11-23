@@ -111,6 +111,8 @@
       const u = D.ustRodziny, kj = String(u.kto_jedzie || '').split(','), lud = D.ludzie.map(o => [o.id, o.imie]);
       h += '<div class="card"><h3>' + I('home', 1) + 'Семья <span class="mute">меняет администратор</span></h3>' +
         '<label class="lb">Кто нажимает «Еду домой»</label>' + chipsy('uJ', lud, kj) +
+        kj.filter(id => lud.some(l => l[0] === id)).map(id => '<label class="lb">Кто видит, что едет ' + esc(imie(id)) + '</label>' +
+          chipsy('uW_' + id, lud.filter(l => l[0] !== id), (u.widza && u.widza[id] != null ? String(u.widza[id]).split(',') : D.ludzie.filter(o => o.rola === 'rodzic' && o.id !== id).map(o => o.id)))).join('') +
         '<label class="lb">Кому приходит задание по кухне</label>' + chipsy('uK', [['', 'Никому']].concat(lud), [u.kuchnia_dla || ''], true) +
         '<label class="lb">Текст задания по кухне</label><textarea id="uT" class="as-in" rows="2">' + esc(u.kuchnia_tekst) + '</textarea>' +
         '<label class="lb">Адрес дома (покажу в SOS, чтобы продиктовать 112)</label><input id="uA" class="as-in" value="' + esc(u.adres_domu) + '" placeholder="ulica, nr, mieszkanie, miasto">' +
@@ -133,7 +135,9 @@
   window.rodzinaZapisz = () => {
     const kj = chipsWartosc('uJ'), kk = (document.querySelector('#uK .chip.on') || {}).dataset;
     const p = { kto_jedzie: kj === 'wszyscy' ? '' : kj, kuchnia_dla: kk ? kk.v : '', kuchnia_tekst: document.getElementById('uT').value.trim(), adres_domu: document.getElementById('uA').value.trim() };
-    zmiana('ustRodziny', p, d => { Object.assign(d.ustRodziny, p); d.adresDomu = p.adres_domu; d.jade = p.kto_jedzie.split(',').indexOf(d.ja.id) >= 0; }, 'Сохранено');
+    // «кто видит» — отдельно для каждого, кто нажимает; пустой список = никто
+    D.ludzie.forEach(o => { const bx = document.getElementById('uW_' + o.id); if (bx) p['widza_' + o.id] = [...bx.querySelectorAll('.chip.on')].map(c => c.dataset.v).join(',') || '-'; });
+    zmiana('ustRodziny', p, d => { Object.assign(d.ustRodziny, p); d.ustRodziny.widza = d.ustRodziny.widza || {}; Object.keys(p).forEach(k => { if (/^widza_/.test(k)) d.ustRodziny.widza[k.slice(6)] = p[k] === '-' ? '' : p[k]; }); d.adresDomu = p.adres_domu; d.jade = p.kto_jedzie.split(',').indexOf(d.ja.id) >= 0; }, 'Сохранено');
   };
 
   const POLA_AUTA = [['nazwa', 'Как называем', 'Fiesta, Мерседес…'], ['marka', 'Марка, модель, год, мотор', 'Ford Fiesta 1.3, 2004'], ['nr_rej', 'Номер (rejestracja)', 'PO 12345'],

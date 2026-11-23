@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.8.1, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.8.2, 23.11.2026
+ * 0.8.2: „Еду домой” — dla każdego, kto naciska, osobna lista osób, które to widzą (klucz widza_<id>); domyślnie pozostali rodzice.
  * 0.8.1: wydatki: „kto kupił” — domyślnie ten, kto zrobił zdjęcie paragonu (można zmienić), podsumowanie miesiąca według osób.
  * 0.8.0: „Droga” — arkusz Miejsca (miejsca z adresem i sposobem dojazdu, na osobę lub wspólne), „Не знаю, куда идти” (zgubiona: punkt GPS → pilny push do rodziców); „Gdzie co kupić” tylko dla wybranego typu zakupów (parametr dzialy).
  * 0.7.0: import paragonów z plików JSON (fiskalny JSON z aplikacji Biedronka) z folderu Rodzina_Dokumenty/Paragony — bez API, tylko nazwy towarów idą do Claude (tani zapytanie tekstowe); ceny jednostkowe po rabatach → Ceny, suma → Wydatki.
@@ -24,7 +25,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.8.1';
+const WERSJA = '0.8.2';
 const SCHEMAT = '8';
 
 const ARKUSZE = {
@@ -422,7 +423,7 @@ const API = {
       if (!otwarte) dodaj_('Zadania', { id: id_(), tytul: ust_('kuchnia_tekst'), dla: dla, od: ja.id, termin: dzien_(), typ: 'kuchnia', status: 'nowe', czas: teraz_() });
       powiadom_([dla], '🚗 ' + ja.imie + ' едет домой.' + kiedy + ' ' + ust_('kuchnia_tekst'), true);
     }
-    const inni = rodzice_().filter(id => id !== ja.id);
+    const inni = widzaJade_(ja.id).filter(id => id !== dla);   // osoba z zadaniem kuchennym dostała już swój push
     if (inni.length) powiadom_(inni, '🚗 ' + ja.imie + ' едет домой.' + kiedy, true);
     podpowiedz_('💬 ' + ja.imie + ' едет домой после смены — хороший момент написать пару тёплых слов.', ja.id);
     return stan_(ja);
@@ -485,6 +486,7 @@ const API = {
     const ids = wiersze_('Ludzie').map(o => o.id), tylkoLudzie = v => String(v || '').split(',').map(x => x.trim()).filter(x => ids.indexOf(x) >= 0).join(',');
     const dozw = { kto_jedzie: tylkoLudzie, kuchnia_dla: tylkoLudzie, podpowiedz_dla: tylkoLudzie, kuchnia_tekst: v => String(v).slice(0, 300),
       adres_domu: v => String(v).slice(0, 200), nazwa_rodziny: v => String(v).slice(0, 60) || 'Семья' };
+    Object.keys(p).forEach(k => { if (/^widza_/.test(k) && ids.indexOf(k.slice(6)) >= 0) dozw[k] = v => String(v) === '-' ? '-' : (tylkoLudzie(v) || '-'); });
     Object.keys(dozw).forEach(k => {
       if (p[k] === undefined) return;
       const o = wiersze_('Ustawienia').filter(x => x.klucz === k)[0], v = dozw[k](p[k]);
@@ -836,10 +838,24 @@ function stan_(ja) {
     telefony: ludzieAll.filter(o => o.telefon).map(o => ({ id: o.id, imie: o.imie, telefon: String(o.telefon) })),
     adresDomu: ust_('adres_domu'),
     dokumenty: dokumentyDla_(ja), kategorie: KATEGORIE.map(k => [k[0], k[1], k[3]]), auta: auta,
-    ustRodziny: czyAdmin_(ja) ? { kto_jedzie: ust_('kto_jedzie'), kuchnia_dla: ust_('kuchnia_dla'), kuchnia_tekst: ust_('kuchnia_tekst'),
+    ustRodziny: czyAdmin_(ja) ? { widza: widzaMapa_(), kto_jedzie: ust_('kto_jedzie'), kuchnia_dla: ust_('kuchnia_dla'), kuchnia_tekst: ust_('kuchnia_tekst'),
       podpowiedz_dla: ust_('podpowiedz_dla'), adres_domu: ust_('adres_domu'), nazwa_rodziny: ust_('nazwa_rodziny') } : null,
     dzis: dzien_(), teraz: teraz_()
   };
+}
+
+// kto widzi, że osoba jedzie do domu: lista wybrana w ustawieniach (klucz widza_<id>; „-” = nikt); bez wyboru — pozostali rodzice
+function widzaJade_(id) {
+  const o = wiersze_('Ustawienia').filter(x => x.klucz === 'widza_' + id)[0];
+  if (!o) return rodzice_().filter(x => x !== id);
+  const v = String(o.wartosc || '').trim();
+  return v === '-' || !v ? [] : listaKto_(v).filter(x => x !== id);
+}
+
+function widzaMapa_() {
+  const m = {};
+  wiersze_('Ustawienia').forEach(o => { if (/^widza_/.test(o.klucz)) m[o.klucz.slice(6)] = String(o.wartosc) === '-' ? '' : String(o.wartosc); });
+  return m;
 }
 
 function listaKto_(s) {

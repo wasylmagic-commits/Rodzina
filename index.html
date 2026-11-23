@@ -461,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.7.6';
+const WERSJA_APLIKACJI = '0.7.7';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -681,7 +681,7 @@ function wDzis() {
     D.ludzie.filter(p => p.rola === 'dziecko').forEach(p => {
       const z = (D.pozycje || []).filter(o => !o.rodzic && o.dla === p.id && !czyZakupy(o.lista));
       const otw = z.filter(o => o.status !== 'zrobione'), zr = z.filter(o => o.status === 'zrobione');
-      h += '<div class="card"><h3>' + I('user', 1) + 'Задания: ' + esc(p.imie) + (otw.length ? ' <span class="mute">' + otw.length + '</span>' : '') +
+      h += '<div class="card"><h3>' + I('user', 1) + 'Задания ' + esc(imieDat(p.imie)) + (otw.length ? ' <span class="mute">' + otw.length + '</span>' : '') +
         '<button class="btn2 mal" onclick="formZadanie(\'' + jsq(p.id) + '\')">' + I('plus', 1) + 'Задание</button></h3>' +
         (otw.length ? otw.sort((a, b) => (a.termin || '9') < (b.termin || '9') ? -1 : 1).map(o => wierszPoz(o, 1)).join('') : '<div class="empty mala">Открытых заданий нет</div>') +
         (zr.length ? '<div class="mute" style="margin-top:6px">' + I('check', 1) + ' Сделано недавно: ' + zr.map(o => esc(o.tytul)).slice(0, 4).join(', ') + '</div>' : '') + '</div>';
@@ -770,6 +770,8 @@ function menuWyd(id) {
     '<div class="ab"><button class="btn czerw" onclick="usunWyd(\'' + jsq(id) + '\')">' + I('trash', 1) + ' Удалить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
 }
 function usunWyd(id) { arkZamknij(); zmiana('wydarzenieUsun', { id: id }, d => d.wydarzenia = d.wydarzenia.filter(x => x.id !== id), 'Удалено'); }
+// имя в дательном падеже: Настя → Насте, Ирина → Ирине (прочие имена без изменений)
+const imieDat = im => /[ая]$/.test(im) ? im.slice(0, -1) + 'е' : im;
 function chipsy(id, opcje, wybrane, jeden) {
   return '<div class="chips" id="' + id + '"' + (jeden ? ' data-jeden="1"' : '') + '>' + opcje.map(o =>
     '<button type="button" class="chip' + (wybrane.indexOf(o[0]) >= 0 ? ' on' : '') + '" data-v="' + esc(o[0]) + '" onclick="chipKlik(this)">' + esc(o[1]) + '</button>').join('') + '</div>';
