@@ -450,6 +450,7 @@
 <script src="skan.js"></script>
 <script src="dokumenty.js"></script>
 <script src="wydatki.js"></script>
+<script src="droga.js"></script>
 <script src="sos.js"></script>
 <script>
 /* Rodzina (aplikacja „Семья”) v0.3 — 23.11.2026
@@ -460,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.6.4';
+const WERSJA_APLIKACJI = '0.7.0';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -524,6 +525,7 @@ const I = (n, s) => '<svg class="i' + (s ? ' s' : '') + '" viewBox="0 0 24 24">'
 const TABS = [['dzis', 'home', 'Сегодня'], ['kal', 'cal', 'Календарь'], ['listy', 'lista', 'Списки'], ['dok', 'id', 'Документы'], ['wiecej', 'grid', 'Ещё']];
 
 /* ---------- pomocnicze ---------- */
+const linkuj = s => esc(s).replace(/(https:\/\/www\.google\.com\/maps\/[^\s<]+)/g, m => '<a href="' + m.replace(/&amp;/g, '&') + '" target="_blank" rel="noopener" style="color:var(--acc);font-weight:600">карта</a>');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const jsq = s => esc(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 const DNI = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], MIES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -655,6 +657,7 @@ function wDzis() {
     h += '<div class="card"><button class="btn jade" onclick="jade()">' + I('car2') + ' Еду домой</button>' +
       '<div class="seg" style="margin:12px 0 0">' + [0, 20, 40, 60].map(m => '<button class="' + (JADE_MIN === m ? 'on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
   }
+  if (window.drogaKarta) h += drogaKarta();
   const kuch = (D.zadania || []).filter(z => z.typ === 'kuchnia' && z.status === 'nowe');
   kuch.filter(z => z.dla === D.ja.id).forEach(z => {
     h += '<div class="card pilna"><h3>' + I('alert', 1) + 'Срочно</h3><div class="t">' + esc(z.tytul) + '</div>' +
@@ -685,7 +688,7 @@ function wDzis() {
   }
   const pw = D.powiadomienia.slice(0, 12);
   h += '<div class="card" id="pwkarta"><h3>' + I('bell', 1) + 'Сообщения' + (pw.some(p => p.status === 'nowe') ? '<button class="btn2 mal" onclick="przeczytane()">прочитал</button>' : '') + '</h3>' +
-    (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + esc(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty mala">Пока тихо</div>') + '</div>';
+    (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + linkuj(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty mala">Пока тихо</div>') + '</div>';
   return h;
 }
 function mojeDoZrobienia() {
@@ -885,7 +888,8 @@ function panelPlanu(otw) {
 function planSzukaj() {
   if (PLAN_LAD) return;
   PLAN_LAD = 1; render();
-  api('planSzukaj', { lista: LISTA }).then(w => { przyjmij(w); toast(w.planUwaga ? w.planUwaga : (w.planN ? 'Готово: цены найдены для ' + w.planN + ' поз.' : 'Цен не нашёл — пока нет ни акций, ни истории чеков')); })
+  const typD = TYP_F ? (TYPY.find(x => x[0] === TYP_F) || [0, 0, ['inne']])[2].join(',') : '';
+  api('planSzukaj', { lista: LISTA, dzialy: typD }).then(w => { przyjmij(w); toast(w.planUwaga ? w.planUwaga : (w.planN ? 'Готово: цены найдены для ' + w.planN + ' поз.' : 'Цен не нашёл — пока нет ни акций, ни истории чеков')); })
     .catch(e => toast(e.message === 'Failed to fetch' ? 'Нет связи с сервером' : e.message))
     .finally(() => { PLAN_LAD = 0; render(); });
 }
@@ -1083,9 +1087,11 @@ function wWiecej() {
   if (PODSTR === 'ust') return wUstawienia();
   if (PODSTR === 'info') return wSystem();
   if (PODSTR === 'wyd' && window.wWydatki) return wWydatki();
+  if (PODSTR === 'droga' && window.wDroga) return wDroga();
   // 0.5.0: porządek – tylko to, czego nie ma gdzie indziej. SOS jest w nagłówku, seria na «Сегодня», Wejscie w «Документы», powiadomienia w Настройки.
   const kafle = [['gear', 'Настройки', 'цвет, фон, уведомления, мои данные, машины', 'podstrona(\'ust\')'],
     ['info', 'Система', D.ja.admin ? 'версия и обновления' : 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']];
+  if (D.miejsca && window.wDroga) kafle.unshift(['pin', 'Дорога', 'места и маршруты, «не знаю, куда идти»', 'podstrona(\'droga\')']);
   if (D.wydatkiOk && window.wydOtworz) kafle.unshift(['wallet', 'Траты', 'чеки, магазины, аналитика', 'wydOtworz()']);
   return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';
 }

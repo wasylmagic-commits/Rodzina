@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.7.0, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.8.0, 23.11.2026
+ * 0.8.0: „Droga” — arkusz Miejsca (miejsca z adresem i sposobem dojazdu, na osobę lub wspólne), „Не знаю, куда идти” (zgubiona: punkt GPS → pilny push do rodziców); „Gdzie co kupić” tylko dla wybranego typu zakupów (parametr dzialy).
  * 0.7.0: import paragonów z plików JSON (fiskalny JSON z aplikacji Biedronka) z folderu Rodzina_Dokumenty/Paragony — bez API, tylko nazwy towarów idą do Claude (tani zapytanie tekstowe); ceny jednostkowe po rabatach → Ceny, suma → Wydatki.
  * 0.6.0: koniec ręcznego przypisywania sklepu do pozycji; arkusz Plan: „Gdzie co kupić” (akcje z sieci jednym zapytaniem na całą listę + ostatnie ceny z paragonów), ranking sklepów liczy aplikacja.
  * 0.5.0: sklepy (pole sklep przy pozycji zakupów, automatyczne z działu, uczy się z poprawek), wydatki (arkusz Wydatki, paragon → Claude), ceny (arkusz Ceny: historia z paragonów, najniższa/ostatnia przy pozycji, „Gdzie taniej?” przez wyszukiwanie w sieci). 0.4.2: kolor znaczka marki auta (kolumna kolor w Auta).
@@ -22,8 +23,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.7.1';
-const SCHEMAT = '7';
+const WERSJA = '0.8.0';
+const SCHEMAT = '8';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -35,6 +36,7 @@ const ARKUSZE = {
   Wydatki:       ['id', 'data', 'kwota', 'kategoria', 'sklep', 'opis', 'kto', 'zrodlo', 'czas'],
   Ceny:          ['id', 'produkt', 'nazwa', 'sklep', 'cena', 'data', 'wydatek'],
   Plan:          ['poz', 'sklep', 'cena', 'info', 'zrodlo', 'cena2', 'sklep2', 'czas'],
+  Miejsca:       ['id', 'nazwa', 'adres', 'tryb', 'dla', 'kolejnosc', 'czas'],
   Zadania:       ['id', 'tytul', 'dla', 'od', 'termin', 'typ', 'status', 'czas', 'czas_zrobione'],
   Zakupy:        ['id', 'nazwa', 'dodal', 'czas', 'kupione', 'kupil', 'czas_kupna'],   // stary arkusz v0.1 — tylko do migracji
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
@@ -358,6 +360,40 @@ const API = {
     const o = znajdz_('Pozycje', p.id), t = o ? o.tytul : String(p.tytul || '').trim().slice(0, 100);
     if (!t) throw new Error('Не найдено');
     return cenaSzukaj_(t);
+  },
+
+  // --- droga: miejsca (adres + sposób dojazdu) i „Не знаю, куда идти”
+  miejsceZapisz: (ja, p) => {
+    const nazwa = String(p.nazwa || '').trim().slice(0, 40), adres = String(p.adres || '').trim().slice(0, 200);
+    if (!nazwa || !adres) throw new Error('Нужны название и адрес');
+    const tryb = ['walk', 'transit', 'drive'].indexOf(p.tryb) >= 0 ? p.tryb : 'walk';
+    let dla = String(p.dla || ja.id);
+    if (ja.rola !== 'rodzic') dla = ja.id;   // дети и не-родители: только свои места
+    else if (dla !== 'wszyscy' && !wiersze_('Ludzie').some(x => x.id === dla)) dla = ja.id;
+    const o = p.id ? znajdz_('Miejsca', p.id) : null;
+    if (o) {
+      if (ja.rola !== 'rodzic' && o.dla !== ja.id) throw new Error('Это место не твоё');
+      zmien_('Miejsca', o, { nazwa: nazwa, adres: adres, tryb: tryb, dla: dla });
+    } else {
+      dodaj_('Miejsca', { id: idKlienta_(p.id, 'Miejsca'), nazwa: nazwa, adres: adres, tryb: tryb, dla: dla, kolejnosc: Date.now(), czas: teraz_() });
+    }
+    return stan_(ja);
+  },
+  miejsceUsun: (ja, p) => {
+    const o = znajdz_('Miejsca', p.id); if (!o) return stan_(ja);
+    if (ja.rola !== 'rodzic' && o.dla !== ja.id) throw new Error('Это место не твоё');
+    usunWiersze_('Miejsca', [o]);
+    return stan_(ja);
+  },
+  // „Не знаю, куда идти”: pilny push do rodziców z punktem na mapie (lat/lng opcjonalne — geolokacja mogła nie zadziałać)
+  zgubiona: (ja, p) => {
+    const lat = Number(p.lat), lng = Number(p.lng), jest = isFinite(lat) && isFinite(lng) && p.lat !== undefined && p.lat !== '' && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    const dokl = Number(p.acc) > 0 ? ' (точность ~' + Math.round(Number(p.acc)) + ' м)' : '';
+    const link = jest ? ' Точка на карте: https://www.google.com/maps/search/?api=1&query=' + lat.toFixed(6) + ',' + lng.toFixed(6) : ' Геолокацию получить не удалось — позвони.';
+    const komu = rodzice_().filter(id => id !== ja.id);
+    if (!komu.length) throw new Error('Некому отправить');
+    powiadom_(komu, '🧭 ' + ja.imie + ' не знает, куда идти.' + dokl + link, true);
+    return { ok: 1, komu: komu.map(imieOsoby_) };
   },
 
   // „Gdzie co kupić”: akcje z sieci (jedno zapytanie na całą listę) + ostatnie ceny z paragonów → arkusz Plan
@@ -786,6 +822,8 @@ function stan_(ja) {
     ja: { id: ja.id, imie: ja.imie, rola: ja.rola, push: !!ja.push, admin: czyAdmin_(ja) }, ludzie: ludzie,
     listy: listy, pozycje: poz, dzialy: DZIALY.map(d => [d[0], d[1]]),
     sklepy: wiersze_('Sklepy').sort((a, b) => Number(a.kolejnosc) - Number(b.kolejnosc)).map(x => [String(x.id), String(x.nazwa)]),
+    miejsca: wiersze_('Miejsca').filter(m => m.dla === "wszyscy" || m.dla === ja.id || ja.rola === "rodzic")
+      .sort((a, b) => Number(a.kolejnosc) - Number(b.kolejnosc)).map(m => ({ id: String(m.id), nazwa: m.nazwa, adres: m.adres, tryb: m.tryb, dla: m.dla })),
     ceny: cenyDlaPozycji_(poz), plan: planDla_(poz), katWyd: KAT_WYDATKOW, wydatkiOk: ja.rola === 'rodzic',
     wydarzenia: wyd, zadania: zad, powiadomienia: pw,
     jade: listaKto_(ust_('kto_jedzie')).indexOf(ja.id) >= 0,
@@ -1223,8 +1261,9 @@ function akcjeZSieci_(tytuly) {
 
 function planSzukaj_(ja, p) {
   const lista = String(p.lista || ''); if (!czyZakupy_(lista)) throw new Error('Это не список покупок');
-  const otwarte = widocznePozycje_(ja, false).filter(o => !o.rodzic && o.status !== 'zrobione' && o.lista === lista).slice(0, 40);
-  if (!otwarte.length) throw new Error('В списке пусто');
+  const typ = String(p.dzialy || '').split(',').map(x => x.trim()).filter(Boolean);   // 0.8.0: tylko wybrany typ zakupów (np. produkty)
+  const otwarte = widocznePozycje_(ja, false).filter(o => !o.rodzic && o.status !== 'zrobione' && o.lista === lista && (!typ.length || typ.indexOf(String(o.dzial || 'inne')) >= 0)).slice(0, 40);
+  if (!otwarte.length) throw new Error(typ.length ? 'В этом типе покупок пусто' : 'В списке пусто');
   const dzis = dzien_();
   const hist = historiaPoSklepach_(otwarte);
   let akcje = [], uwaga = '';
