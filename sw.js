@@ -1,5 +1,5 @@
 // Семья — service worker: страница всегда свежая из сети, копия на случай без интернета; пуши через Firebase (если есть ключи в config.js)
-const CACHE = 'rodzina-v2';
+const CACHE = 'rodzina-v3';
 importScripts('config.js');
 if (self.FB) {
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js', 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');

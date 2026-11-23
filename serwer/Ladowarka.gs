@@ -11,7 +11,10 @@
  *   „Откатить” (aktCofnij) → wraca poprzedni silnik. Obsługuje to Ładowarka, więc nawet zepsuty silnik da się cofnąć.
  * Pierwszy start: gdy nic nie jest przypięte, Ładowarka sama instaluje pierwszą łatkę z kolejki.
  * Skalowanie: każda rodzina ma tę samą Ładowarkę; silnik dostaje łatką do swojego folderu.
+ * Wersja 2 (23.11.2026): doPost — pliki (dokumenty, zdjęcia) przychodzą w treści zapytania jako JSON; dalej ta sama droga co doGet.
  */
+
+const LAD_WERSJA = 2;
 
 const LAD_FOLDER_NAZWA = 'Rodzina_Aktualizacje';
 const LAD_HISTORIA_ILE = 10;
@@ -26,10 +29,19 @@ function ladJson_(o) { return ContentService.createTextOutput(JSON.stringify(o))
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try { const u = ScriptApp.getService().getUrl(); if (/\/exec$/.test(u) && ladP_().getProperty('WEBAPP_URL') !== u) ladP_().setProperty('WEBAPP_URL', u); } catch (x) {}
+  if (p.api === 'ladWersja') return ladJson_({ ok: true, wynik: { ladowarka: LAD_WERSJA } });
   if (/^akt/.test(p.api || '')) return ladJson_(ladAktualizacje_(p));
   try { ladUruchom_(); }
   catch (err) { return ladJson_({ ok: false, blad: 'Сервер не смог загрузить код: ' + err.message + '. Администратор: Ещё → Обновление системы → Откатить.' }); }
   return RODZINA_SILNIK.obsluzZapytanie_(e);
+}
+// POST: { k, api, …, b64 } w treści (text/plain, bez preflight CORS) — parametry z adresu + z treści, potem jak doGet
+function doPost(e) {
+  let tresc = {};
+  try { tresc = JSON.parse((e && e.postData && e.postData.contents) || '{}') || {}; }
+  catch (x) { return ladJson_({ ok: false, blad: 'Неверные данные в запросе' }); }
+  const p = Object.assign({}, (e && e.parameter) || {}, tresc);
+  return doGet({ parameter: p, postData: e && e.postData, metoda: 'post' });
 }
 function co15() { ladUruchom_(); RODZINA_SILNIK.co15_(); }
 function instalacja() { ladUruchom_(); RODZINA_SILNIK.instalacja_(); }

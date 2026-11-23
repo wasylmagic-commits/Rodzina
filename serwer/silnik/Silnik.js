@@ -1,5 +1,7 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.2.1, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.3.0, 23.11.2026
+ * 0.3.0: dokumenty (Drive, rozpoznanie przez Claude, termin ważności), auta, „moje dane” (SOS/kolizja), ustawienia rodziny w aplikacji,
+ *        „Jadę do domu” dla obojga rodziców, wysyłka plików przez POST (Ładowarka ≥ 2).
  * PWA (GitHub Pages, wspólna dla wszystkich rodzin) + ten skrypt + arkusz rodziny.
  *
  * SKALOWANIE: kod jest JEDEN dla każdej rodziny. Wszystko, co dotyczy konkretnej rodziny
@@ -14,11 +16,11 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.2.1';
-const SCHEMAT = '2';
+const WERSJA = '0.3.0';
+const SCHEMAT = '3';
 
 const ARKUSZE = {
-  Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do'],
+  Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
   Wydarzenia:    ['id', 'tytul', 'start', 'kto', 'miejsce', 'przyp', 'przyp_wyslane', 'autor', 'czas'],
   Listy:         ['id', 'nazwa', 'ikona', 'widocznosc', 'kolejnosc', 'zakupy'],
   Pozycje:       ['id', 'lista', 'tytul', 'rodzic', 'dla', 'od', 'termin', 'przyp', 'przyp_wyslane', 'dzial', 'notatka', 'status', 'czas', 'czas_zrobione', 'kolejnosc'],
@@ -26,8 +28,23 @@ const ARKUSZE = {
   Zadania:       ['id', 'tytul', 'dla', 'od', 'termin', 'typ', 'status', 'czas', 'czas_zrobione'],
   Zakupy:        ['id', 'nazwa', 'dodal', 'czas', 'kupione', 'kupil', 'czas_kupna'],   // stary arkusz v0.1 — tylko do migracji
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
-  Ustawienia:    ['klucz', 'wartosc', 'opis']
+  Ustawienia:    ['klucz', 'wartosc', 'opis'],
+  Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas'],
+  Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas']
 };
+
+// kategorie dokumentów: [klucz, nazwa w aplikacji, folder na Drive, kto widzi domyślnie]
+const KATEGORIE = [
+  ['auto', 'Авто', 'Auto', 'rodzice'],
+  ['ubezp', 'Страховки', 'Ubezpieczenia', 'rodzice'],
+  ['med', 'Медицина', 'Medycyna', 'ja'],
+  ['rodzina', 'Личные документы', 'Dokumenty osobiste', 'rodzice'],
+  ['dom', 'Дом и счета', 'Dom i rachunki', 'rodzice'],
+  ['szkola', 'Учёба', 'Szkola', 'rodzice'],
+  ['inne', 'Прочее', 'Inne', 'rodzice']
+];
+const DOK_FOLDER = 'Rodzina_Dokumenty';
+const DOK_MAX = 20 * 1024 * 1024;
 
 // ustawienia domyślne (opis po rosyjsku — arkusz czyta rodzina)
 const USTAWIENIA_START = [
@@ -43,7 +60,8 @@ const USTAWIENIA_START = [
   ['seria_miesiac', '30', 'дней без пропусков → совместный шопинг'],
   ['poranek', '07:00', 'утренняя сводка'],
   ['wieczor', '20:00', 'вечерняя сводка (в воскресенье — план на неделю)'],
-  ['model', 'claude-haiku-5-5', 'модель Claude для быстрого добавления']
+  ['model', 'claude-haiku-5-5', 'модель Claude для быстрого добавления'],
+  ['adres_domu', '', 'адрес дома (для звонка 112 из SOS)']
 ];
 
 const LISTY_START = [
@@ -117,6 +135,12 @@ function schemat_(sila) {
       zmien_('Zadania', o, { status: 'przeniesione' });
     });
     pr.setProperty('MIGRACJA_02', 'tak');
+  }
+  // migracja 0.3: „Еду домой” mogą naciskać oboje rodzice (dalej zmienia to administrator w aplikacji)
+  if (pr.getProperty('MIGRACJA_03') !== 'tak') {
+    const o = wiersze_('Ustawienia').filter(x => x.klucz === 'kto_jedzie')[0];
+    if (o) { const l = listaKto_(o.wartosc); rodzice_().forEach(id => { if (l.indexOf(id) < 0) l.push(id); }); zmien_('Ustawienia', o, { wartosc: l.join(',') }); }
+    pr.setProperty('MIGRACJA_03', 'tak');
   }
   pr.setProperty('SCHEMAT', SCHEMAT);
 }
@@ -291,8 +315,165 @@ const API = {
   pushToken: (ja, p) => { zmien_('Ludzie', ja, { push: p.t || '' }); return { ok: 1 }; },
 
   // szybkie dodawanie tekstem: Claude rozbiera, nic nie zapisuje — aplikacja pyta „верно?”
-  szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500))
+  szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500)),
+
+  // --- moje dane (do SOS i oświadczenia o kolizji) — każdy zmienia tylko swoje
+  jaZmien: (ja, p) => {
+    const pola = {};
+    ['nazwisko', 'telefon', 'adres', 'prawo_jazdy'].forEach(k => { if (p[k] !== undefined) pola[k] = String(p[k]).trim().slice(0, 200); });
+    ['cisza_od', 'cisza_do'].forEach(k => { if (/^\d\d:\d\d$/.test(p[k] || '')) pola[k] = p[k]; });
+    zmien_('Ludzie', ja, pola);
+    return stan_(ja);
+  },
+
+  // --- ustawienia rodziny (tylko administrator)
+  ustRodziny: (ja, p) => {
+    if (!czyAdmin_(ja)) throw new Error('Настройки семьи меняет администратор');
+    const ids = wiersze_('Ludzie').map(o => o.id), tylkoLudzie = v => String(v || '').split(',').map(x => x.trim()).filter(x => ids.indexOf(x) >= 0).join(',');
+    const dozw = { kto_jedzie: tylkoLudzie, kuchnia_dla: tylkoLudzie, podpowiedz_dla: tylkoLudzie, kuchnia_tekst: v => String(v).slice(0, 300),
+      adres_domu: v => String(v).slice(0, 200), nazwa_rodziny: v => String(v).slice(0, 60) || 'Семья' };
+    Object.keys(dozw).forEach(k => {
+      if (p[k] === undefined) return;
+      const o = wiersze_('Ustawienia').filter(x => x.klucz === k)[0], v = dozw[k](p[k]);
+      if (o) zmien_('Ustawienia', o, { wartosc: v }); else dodaj_('Ustawienia', { klucz: k, wartosc: v, opis: '' });
+    });
+    return stan_(ja);
+  },
+
+  // --- auta rodziny (rodzice)
+  autoZapisz: (ja, p) => {
+    if (ja.rola !== 'rodzic') throw new Error('Машины добавляют родители');
+    if (!String(p.nazwa || '').trim()) throw new Error('Нужно название машины');
+    const pola = {};
+    ['nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka']
+      .forEach(k => { if (p[k] !== undefined) pola[k] = String(p[k]).trim().slice(0, 300); });
+    if (pola.nr_rej) pola.nr_rej = pola.nr_rej.toUpperCase();
+    const o = p.id ? znajdz_('Auta', p.id) : null;
+    if (o) zmien_('Auta', o, Object.assign(pola, { czas: teraz_() }));
+    else dodaj_('Auta', Object.assign(pola, { id: idKlienta_(p.id, 'Auta'), czas: teraz_() }));
+    return stan_(ja);
+  },
+  autoUsun: (ja, p) => {
+    if (ja.rola !== 'rodzic') throw new Error('Удаляют родители');
+    const o = znajdz_('Auta', p.id); if (o) ark_('Auta').deleteRow(o._w);
+    return stan_(ja);
+  },
+
+  // --- dokumenty
+  // rozpoznanie (POST): zdjęcie pierwszej strony → propozycja kategorii, nazwy, właściciela, auta, terminu; nic nie zapisuje
+  dokAnaliza: (ja, p) => analizaDok_(ja, p),
+  // zapis (POST): cały plik w base64 + opis
+  dokZapisz: (ja, p) => {
+    const b64 = String(p.b64 || '');
+    if (!b64) throw new Error('Нет файла (обнови приложение)');
+    const mime = /^(application\/pdf|image\/(jpeg|png|webp|heic))$/.test(p.mime || '') ? p.mime : 'application/octet-stream';
+    const bajty = Utilities.base64Decode(b64);
+    if (bajty.length > DOK_MAX) throw new Error('Файл больше 20 МБ');
+    const kat = kategoria_(p.kategoria), tytul = String(p.tytul || '').trim().slice(0, 150) || 'Документ';
+    const rozsz = mime === 'application/pdf' ? '.pdf' : mime === 'image/png' ? '.png' : '.jpg';
+    const nazwa = dzien_() + ' ' + tytul.replace(/[\\/:*?"<>|]+/g, ' ') + rozsz;
+    const id = idKlienta_(p.id, 'Dokumenty');
+    if (znajdz_('Dokumenty', p.id)) return stan_(ja);   // ponowna wysyłka po zerwaniu sieci
+    const plik = folderKat_(kat[0]).createFile(Utilities.newBlob(bajty, mime, nazwa));
+    dodaj_('Dokumenty', { id: id, tytul: tytul, kategoria: kat[0], wlasciciel: wlasciciel_(p.wlasciciel, ja), auto: p.auto || '',
+      widocznosc: widocznosc_(p.widocznosc, kat), plik: plik.getId(), mime: mime, nazwa_pliku: nazwa, rozmiar: bajty.length,
+      wazny_do: /^\d{4}-\d\d-\d\d$/.test(p.wazny_do || '') ? p.wazny_do : '', sos: Number(p.sos) ? 1 : 0, notatka: String(p.notatka || '').slice(0, 500),
+      od: ja.id, czas: teraz_() });
+    return stan_(ja);
+  },
+  dokZmien: (ja, p) => {
+    const o = znajdz_('Dokumenty', p.id); if (!o || !widziDok_(ja, o)) throw new Error('Документ не найден');
+    const pola = {};
+    if (p.tytul !== undefined) pola.tytul = String(p.tytul).trim().slice(0, 150) || o.tytul;
+    if (p.kategoria !== undefined) pola.kategoria = kategoria_(p.kategoria)[0];
+    if (p.wlasciciel !== undefined) pola.wlasciciel = wlasciciel_(p.wlasciciel, ja);
+    if (p.auto !== undefined) pola.auto = String(p.auto);
+    if (p.widocznosc !== undefined) pola.widocznosc = widocznosc_(p.widocznosc, kategoria_(pola.kategoria || o.kategoria));
+    if (p.wazny_do !== undefined) pola.wazny_do = /^\d{4}-\d\d-\d\d$/.test(p.wazny_do) ? p.wazny_do : '';
+    if (p.sos !== undefined) pola.sos = Number(p.sos) ? 1 : 0;
+    if (p.notatka !== undefined) pola.notatka = String(p.notatka).slice(0, 500);
+    if (pola.kategoria && pola.kategoria !== o.kategoria) { try { DriveApp.getFileById(o.plik).moveTo(folderKat_(pola.kategoria)); } catch (e) {} }
+    zmien_('Dokumenty', o, pola);
+    return stan_(ja);
+  },
+  dokUsun: (ja, p) => {
+    const o = znajdz_('Dokumenty', p.id); if (!o) return stan_(ja);
+    if (!widziDok_(ja, o) || (ja.rola !== 'rodzic' && o.od !== ja.id)) throw new Error('Удалить может тот, кто добавил, или родитель');
+    try { DriveApp.getFileById(o.plik).setTrashed(true); } catch (e) {}   // kosz Drive: 30 dni na odzyskanie
+    ark_('Dokumenty').deleteRow(o._w);
+    return stan_(ja);
+  },
+  dokPobierz: (ja, p) => {
+    const o = znajdz_('Dokumenty', p.id); if (!o || !widziDok_(ja, o)) throw new Error('Документ не найден');
+    const b = DriveApp.getFileById(o.plik).getBlob();
+    return { id: o.id, mime: o.mime || b.getContentType(), nazwa: o.nazwa_pliku || b.getName(), b64: Utilities.base64Encode(b.getBytes()) };
+  }
 };
+
+// ---------------------------------------------------------------- dokumenty: pomocnicze
+function kategoria_(k) { return KATEGORIE.filter(x => x[0] === k)[0] || KATEGORIE[KATEGORIE.length - 1]; }
+function wlasciciel_(w, ja) { w = String(w || ''); return w === 'rodzina' || wiersze_('Ludzie').some(o => o.id === w) ? w : ja.id; }
+function widocznosc_(w, kat) { return ['ja', 'rodzice', 'wszyscy'].indexOf(w) >= 0 ? w : kat[3]; }
+// kto widzi: dodający i właściciel — zawsze; „wszyscy” — rodzina; „rodzice” — rodzice; „ja” — tylko właściciel (dokumenty dziecka widzą też rodzice)
+function widziDok_(ja, d, role) {
+  if (d.od === ja.id || d.wlasciciel === ja.id || d.widocznosc === 'wszyscy') return true;
+  if (ja.rola !== 'rodzic') return false;
+  if (d.widocznosc !== 'ja' || d.wlasciciel === 'rodzina') return true;
+  if (!role) { role = {}; wiersze_('Ludzie').forEach(o => role[o.id] = o.rola); }
+  return role[d.wlasciciel] === 'dziecko';
+}
+function folderDok_() {
+  const pr = PropertiesService.getScriptProperties(), id = pr.getProperty('DOK_FOLDER');
+  if (id) { try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
+  const it = DriveApp.getFileById(SpreadsheetApp.getActive().getId()).getParents(), rodzic = it.hasNext() ? it.next() : DriveApp.getRootFolder();
+  const jest = rodzic.getFoldersByName(DOK_FOLDER), f = jest.hasNext() ? jest.next() : rodzic.createFolder(DOK_FOLDER);
+  pr.setProperty('DOK_FOLDER', f.getId());
+  return f;
+}
+function folderKat_(k) { const f = folderDok_(), n = kategoria_(k)[2], it = f.getFoldersByName(n); return it.hasNext() ? it.next() : f.createFolder(n); }
+
+// propozycja dla „куда положить”: Claude patrzy na pierwszą stronę; bez klucza — słowa z nazwy
+function analizaDok_(ja, p) {
+  const ludzie = wiersze_('Ludzie'), auta = wiersze_('Auta');
+  const zNazwy = zgadnijKat_(String(p.nazwa || '') + ' ' + String(p.tytul || ''));
+  const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
+  if (!key || !p.b64) return { kategoria: zNazwy, zrodlo: 'nazwa' };
+  const sys = 'Ты раскладываешь документы семьи по папкам. Сегодня ' + dzien_() + '. Люди: ' + ludzie.map(o => o.id + '=' + o.imie + (o.nazwisko ? ' (' + o.nazwisko + ')' : '')).join(', ') +
+    '. Машины: ' + (auta.length ? auta.map(a => a.id + '=' + a.nazwa + ' ' + a.marka + ' ' + a.nr_rej).join(', ') : 'нет') +
+    '. Категории: ' + KATEGORIE.map(k => k[0] + '=' + k[1]).join(', ') + ' (ubezp — любые полисы, OC/AC, страховка жилья, путешествий; auto — техпаспорт dowód rejestracyjny, przegląd, счета за ремонт; ' +
+    'med — справки, направления skierowanie, результаты анализов, рецепты, выписки; rodzina — паспорта, карты побыту, PESEL, свидетельства, дипломы, договоры работы; dom — аренда, счета, коммуналка, банк; szkola — школа, техникум, оценки). ' +
+    'Ответь ТОЛЬКО JSON: {"kategoria":"…","tytul":"короткое понятное название по-русски, до 6 слов, например «Полис OC Fiesta 2026»","wlasciciel":"id человека или rodzina",' +
+    '"auto":"id машины или пусто","wazny_do":"YYYY-MM-DD — до какого числа документ действует (полис, техосмотр, карта, паспорт), иначе пусто","opis":"одна фраза, что это"}';
+  try {
+    const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 300, system: sys, messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: String(p.b64) } },
+        { type: 'text', text: 'Пишет: ' + ja.id + '. Имя файла: ' + String(p.nazwa || '—') } ] }] })
+    });
+    if (r.getResponseCode() !== 200) return { kategoria: zNazwy, zrodlo: 'nazwa' };
+    const t = (JSON.parse(r.getContentText()).content || []).map(c => c.text || '').join(''), m = t.match(/\{[\s\S]*\}/);
+    const j = m ? JSON.parse(m[0]) : {};
+    return { kategoria: kategoria_(j.kategoria)[0], tytul: String(j.tytul || '').slice(0, 80), wlasciciel: ludzie.some(o => o.id === j.wlasciciel) || j.wlasciciel === 'rodzina' ? j.wlasciciel : '',
+      auto: auta.some(a => a.id === j.auto) ? j.auto : '', wazny_do: /^\d{4}-\d\d-\d\d$/.test(j.wazny_do || '') ? j.wazny_do : '', opis: String(j.opis || '').slice(0, 200), zrodlo: 'claude' };
+  } catch (e) { return { kategoria: zNazwy, zrodlo: 'nazwa' }; }
+}
+function zgadnijKat_(t) {
+  t = norm_(t);
+  const reg = [['ubezp', /полис|страхов|polis|ubezpiecz|\boc\b|\bac\b|assistance/], ['auto', /авто|машин|техпасп|техосмотр|dowód rej|dowod rej|przegląd|przeglad|samoch|fiesta|mercedes/],
+    ['med', /справк|направлен|анализ|рецепт|врач|больниц|skierowan|recept|wynik|lekarz|szpital|zaświadcz|zaswiadcz|badani/],
+    ['szkola', /школ|техникум|оценк|szkoł|szkol|technikum|świadectw|swiadectw/], ['dom', /счет|счёт|аренд|квартир|rachun|faktur|najm|umowa najmu|prąd|prad|gaz|internet|bank/],
+    ['rodzina', /паспорт|карта побыт|pesel|свидетел|диплом|paszport|karta pobytu|dowód osob|dowod osob|akt urodzenia|umowa o pracę/]];
+  const z = reg.filter(r => r[1].test(t))[0];
+  return z ? z[0] : 'inne';
+}
+function dokumentyDla_(ja) {
+  const role = {}; wiersze_('Ludzie').forEach(o => role[o.id] = o.rola);
+  return wiersze_('Dokumenty').filter(d => widziDok_(ja, d, role)).map(d => ({ id: String(d.id), tytul: d.tytul, kategoria: d.kategoria, wlasciciel: d.wlasciciel,
+    auto: d.auto, widocznosc: d.widocznosc, mime: d.mime, nazwa_pliku: d.nazwa_pliku, rozmiar: Number(d.rozmiar) || 0, wazny_do: tekstDaty_(d.wazny_do).slice(0, 10),
+    sos: Number(d.sos) ? 1 : 0, notatka: d.notatka, od: d.od, czas: tekstDaty_(d.czas) })).sort((a, b) => a.czas < b.czas ? 1 : -1);
+}
 
 
 // id z aplikacji (interfejs pokazuje zmianę od razu, serwer dogania) — jeśli poprawne i wolne
@@ -364,6 +545,8 @@ function stan_(ja) {
   const pw = wiersze_('Powiadomienia').filter(o => o.dla === ja.id).slice(-40).reverse()
     .map(o => ({ id: o.id, tekst: o.tekst, czas: tekstDaty_(o.czas), status: o.status, pilne: Number(o.pilne) ? 1 : 0 }));
   const seriaKto = ust_('kuchnia_dla');
+  const ludzieAll = wiersze_('Ludzie');
+  const auta = wiersze_('Auta').map(a => { const o = {}; ARKUSZE.Auta.forEach(k => o[k] = tekstDaty_(a[k])); o.polisa_do = o.polisa_do.slice(0, 10); return o; });
   return {
     wersja: WERSJA, rodzina: { nazwa: ust_('nazwa_rodziny') || 'Семья' },
     ja: { id: ja.id, imie: ja.imie, rola: ja.rola, push: !!ja.push, admin: czyAdmin_(ja) }, ludzie: ludzie,
@@ -373,6 +556,13 @@ function stan_(ja) {
     seria: seriaKto ? seria_(seriaKto) : { dni: 0, zrobione: 0 }, seriaKto: seriaKto,
     serieCel: [Number(ust_('seria_tydzien')) || 7, Number(ust_('seria_miesiac')) || 30],
     szybko: !!PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY'),
+    moje: { nazwisko: String(ja.nazwisko || ''), telefon: String(ja.telefon || ''), adres: String(ja.adres || ''), prawo_jazdy: String(ja.prawo_jazdy || ''),
+      cisza_od: String(ja.cisza_od || '22:00'), cisza_do: String(ja.cisza_do || '07:00') },
+    telefony: ludzieAll.filter(o => o.telefon).map(o => ({ id: o.id, imie: o.imie, telefon: String(o.telefon) })),
+    adresDomu: ust_('adres_domu'),
+    dokumenty: dokumentyDla_(ja), kategorie: KATEGORIE.map(k => [k[0], k[1], k[3]]), auta: auta,
+    ustRodziny: czyAdmin_(ja) ? { kto_jedzie: ust_('kto_jedzie'), kuchnia_dla: ust_('kuchnia_dla'), kuchnia_tekst: ust_('kuchnia_tekst'),
+      podpowiedz_dla: ust_('podpowiedz_dla'), adres_domu: ust_('adres_domu'), nazwa_rodziny: ust_('nazwa_rodziny') } : null,
     dzis: dzien_(), teraz: teraz_()
   };
 }
@@ -520,6 +710,8 @@ function podsumowanie_(kiedy) {
       const z = mojePoz.filter(o => tekstDaty_(o.termin).slice(0, 10) && tekstDaty_(o.termin).slice(0, 10) <= dz);
       if (z.length) linie.push('Дела на сегодня: ' + z.map(o => o.tytul).slice(0, 6).join('; '));
       if (zak) linie.push('В списке покупок: ' + zak);
+      const kon = konczaceSie_(c);
+      if (kon.length) linie.push('Документы: ' + kon.join('; '));
     } else {
       const zakres = niedziela ? 7 : 1;
       const d = wyd.filter(w => w.s.slice(0, 10) >= jutro && w.s.slice(0, 10) <= dzien_(plusDni_(zakres)) && moje(w));
@@ -534,6 +726,23 @@ function podsumowanie_(kiedy) {
     const push = wyslijPush_(c, tekst, kiedy === 'poranek' ? '☀️ Доброе утро, ' + c.imie : (niedziela ? '🗓 План на неделю' : '🌙 На завтра'));
     dodaj_('Powiadomienia', { id: id_(), dla: c.id, tekst: tekst, czas: teraz_(), status: 'nowe', pilne: 0, push: push ? 'tak' : 'nie' });
   });
+}
+
+// dokumenty i polisy aut, którym kończy się ważność: przypomnienie za 30, 14, 7, 3, 1 dzień i w dniu końca
+function konczaceSie_(c) {
+  const progi = [30, 14, 7, 3, 1, 0], dz = naDate_(dzien_() + 'T00:00').getTime(), out = [];
+  const ile = s => Math.round((naDate_(s + 'T00:00').getTime() - dz) / 864e5);
+  const tekst = (n, t) => t + (n === 0 ? ' — истекает сегодня' : ' — истекает через ' + n + ' дн.');
+  wiersze_('Dokumenty').forEach(d => {
+    const s = tekstDaty_(d.wazny_do).slice(0, 10); if (!/^\d{4}-\d\d-\d\d$/.test(s)) return;
+    const n = ile(s); if (progi.indexOf(n) < 0) return;
+    if (d.wlasciciel === c.id || (c.rola === 'rodzic' && widziDok_(c, d))) out.push(tekst(n, d.tytul));
+  });
+  if (c.rola === 'rodzic') wiersze_('Auta').forEach(a => {
+    const s = tekstDaty_(a.polisa_do).slice(0, 10); if (!/^\d{4}-\d\d-\d\d$/.test(s)) return;
+    const n = ile(s); if (progi.indexOf(n) >= 0) out.push(tekst(n, 'Полис ' + a.nazwa));
+  });
+  return out;
 }
 
 // w nocy: niezrobiona dzisiejsza kuchnia = opuszczenie (zeruje serię)
