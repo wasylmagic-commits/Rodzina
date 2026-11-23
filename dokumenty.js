@@ -148,9 +148,9 @@
   window.skanerOkno = () => ark('<h4>' + I('note', 1) + ' Сканер</h4>' +
     '<div class="mute" style="margin:2px 0 12px">Лист ровнее и чётче получается в готовых сканерах. Наш встроенный остаётся для быстрых снимков («Сфотографировать»).</div>' +
     '<div class="t" style="font-weight:600">Google Drive</div><div class="mute" style="margin:2px 0 8px">«+» → «Сканировать» → сохрани PDF в папку <b>Rodzina_Dokumenty / Wejscie</b>. Я сам разложу файл (раз в 15 минут или кнопкой «Разобрать Wejscie»).</div>' +
-    '<a class="btn szer" href="intent://#Intent;package=com.google.android.apps.docs;end">' + I('upload', 1) + ' Открыть Google Drive</a>' +
+    '<a class="btn szer" href="intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10000000;package=com.google.android.apps.docs;S.browser_fallback_url=https%3A%2F%2Fdrive.google.com%2Fdrive%2Fmy-drive;end">' + I('upload', 1) + ' Открыть Google Drive</a>' +
     '<div class="t" style="font-weight:600;margin-top:16px">CamScanner</div><div class="mute" style="margin:2px 0 8px">Готовый скан → «Поделиться» → <b>Семья</b>. Документ откроется здесь, дальше как обычно: название, чей, срок. Пункт «Семья» появляется после обновления приложения (иногда нужно пару дней или переустановить иконку).</div>' +
-    '<a class="btn2 szer" href="intent://#Intent;package=com.intsig.camscanner;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.intsig.camscanner;end">' + I('camera', 1) + 'Открыть CamScanner</a>' +
+    '<a class="btn2 szer" href="intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10000000;package=com.intsig.camscanner;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.intsig.camscanner;end">' + I('camera', 1) + 'Открыть CamScanner</a>' +
     '<div class="ab"><button class="btn2" onclick="arkZamknij()">Закрыть</button></div>');
 
   // „Поделиться → Семья” (share_target в manifest.json, sw.js кладёт файл в cache „udostepnione”) → тот же путь, что у «Загрузить»

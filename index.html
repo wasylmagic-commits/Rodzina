@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
 <title>Семья</title>
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -327,6 +327,20 @@
   .row.poz{align-items:flex-start}
   .row.poz .g{cursor:pointer}
   .row.poz.mala{padding:7px 0;min-height:0}
+  /* 0.6.0: zakupy — wiersze zwarte, dział małą etykietą obok nazwy, sklepy jako filtry */
+  .card.zkc{padding:4px 14px 6px}
+  .card.zkc h3{margin:8px 0 0;font-size:13px}
+  .row.poz.zk{padding:7px 0;min-height:0;align-items:center;gap:10px}
+  .row.poz.zk .okr-chk{width:24px;height:24px}
+  .row.poz.zk .okr-chk svg{width:14px;height:14px}
+  .zt{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .zt .tx{min-width:0;overflow-wrap:anywhere}
+  .dz{font-size:11.5px;color:var(--mute);white-space:nowrap;flex:0 0 auto;opacity:.85;font-weight:500}
+  .row.poz.zk .meta{font-size:12.5px;margin-top:0}
+  .meta .tan{color:#34c759;font-weight:600}
+  .wbar{height:6px;border-radius:3px;background:var(--fill);overflow:hidden;margin-top:5px}.wbar>i{display:block;height:100%;background:var(--acc);border-radius:3px}
+  .wsuma{font-size:34px;font-weight:700;letter-spacing:.2px;line-height:1.1}
+  .wcena{white-space:pre-line;font-size:15px;line-height:1.4;background:var(--fill);border-radius:14px;padding:10px 12px;margin:8px 0}
   .done .t{text-decoration:line-through;opacity:.5}
   .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 0}
   .meta svg{width:13px;height:13px;margin-right:3px;vertical-align:-2px}
@@ -430,6 +444,7 @@
 <div id="ark"></div>
 <script src="skan.js"></script>
 <script src="dokumenty.js"></script>
+<script src="wydatki.js"></script>
 <script src="sos.js"></script>
 <script>
 /* Rodzina (aplikacja „Семья”) v0.3 — 23.11.2026
@@ -440,7 +455,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.5.1';
+const WERSJA_APLIKACJI = '0.6.0';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -485,6 +500,8 @@ const IC = {
   id: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.8-2 3-2s2.4.5 3 2M14 10h4M14 13h3"/>',
   book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M19 19v2H6"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 14.5h2"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v4h16v-4"/>',
   download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v4h16v-4"/>',
   share: '<path d="M12 3v13M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/>',
@@ -788,15 +805,19 @@ function wListy() {
   }).join('') + '</div>';
   const zak = czyZakupy(LISTA);
   h += '<div class="szybko"><input id="nowa" class="as-in" placeholder="' + (zak ? 'Молоко, хлеб, корм… (через запятую)' : 'Новая задача в «' + esc(nazwaListy(LISTA)) + '»') + '" onkeydown="if(event.key===\'Enter\')dodajPoz()"><button class="btn okr" onclick="dodajPoz()" aria-label="Добавить">' + I('plus') + '</button></div>';
+  if (zak) h += chipySklepow();
   const wszystkie = glowne(LISTA), otwarte = wszystkie.filter(o => o.status !== 'zrobione'), zrobione = wszystkie.filter(o => o.status === 'zrobione');
   if (!otwarte.length) h += '<div class="card"><div class="empty">' + (zak ? 'Всё куплено' : 'Здесь пусто') + '</div></div>';
   else if (zak) {
-    (D.dzialy || [['inne', 'Другое']]).forEach(([k, nazwa]) => {
-      const w = otwarte.filter(o => (o.dzial || 'inne') === k);
-      if (w.length) h += '<div class="card"><h3>' + esc(nazwa) + ' <span class="mute">' + w.length + '</span></h3>' + w.map(o => wierszPoz(o)).join('') + '</div>';
-    });
-    const znane = (D.dzialy || []).map(d => d[0]), reszta = otwarte.filter(o => znane.indexOf(o.dzial || 'inne') < 0);
-    if (reszta.length) h += '<div class="card">' + reszta.map(o => wierszPoz(o)).join('') + '</div>';
+    const kolD = {}; (D.dzialy || []).forEach((d, i) => kolD[d[0]] = i);
+    const sortD = (a, b) => ((kolD[a.dzial || 'inne'] === undefined ? 99 : kolD[a.dzial || 'inne']) - (kolD[b.dzial || 'inne'] === undefined ? 99 : kolD[b.dzial || 'inne'])) || a.kolejnosc - b.kolejnosc;
+    const wid = SKLEP_F === '' ? otwarte : otwarte.filter(o => (o.sklep || '') === (SKLEP_F === '_' ? '' : SKLEP_F));
+    if (!wid.length) h += '<div class="card"><div class="empty mala">В этом магазине пока ничего</div></div>';
+    else if (SKLEP_F === '') {
+      const idy = (D.sklepy || []).map(x => x[0]), ks = idy.concat(otwarte.map(o => o.sklep || '').filter((v, i, a) => v && idy.indexOf(v) < 0 && a.indexOf(v) === i)).concat(['']);
+      ks.forEach(k => { const w = wid.filter(o => (o.sklep || '') === k).sort(sortD);
+        if (w.length) h += '<div class="card zkc"><h3>' + I('cart', 1) + esc(sklepNazwa(k)) + ' <span class="mute">' + w.length + '</span></h3>' + w.map(o => wierszPoz(o)).join('') + '</div>'; });
+    } else h += '<div class="card zkc">' + wid.sort(sortD).map(o => wierszPoz(o)).join('') + '</div>';
   } else {
     const d0 = dzis(), d1 = plusDni(d0, 1);
     const grupy = [['Просрочено', o => o.termin && o.termin < d0, 'r'], ['Сегодня', o => o.termin === d0], ['Завтра', o => o.termin === d1],
@@ -815,7 +836,43 @@ function wListy() {
   return h;
 }
 function wybierzListe(id) { LISTA = id; LS.set('lista', id); render(); }
+let SKLEP_F = LS.get('sklepF') || '';   // '' = все магазины, '_' = без магазина, иначе id магазина
+function sklepNazwa(id) { if (!id) return 'Без магазина'; const s = (D.sklepy || []).find(x => x[0] === id); return s ? s[1] : id; }
+function dzialNazwa(k) { const d = (D.dzialy || []).find(x => x[0] === k); return d ? d[1] : ''; }
+function zl(n) { return (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',') + ' zł'; }
+function chipySklepow() {
+  const otw = glowne(LISTA).filter(o => o.status !== 'zrobione'), licz = {};
+  otw.forEach(o => { const k = o.sklep || ''; licz[k] = (licz[k] || 0) + 1; });
+  const idy = (D.sklepy || []).map(x => x[0]);
+  if (SKLEP_F && SKLEP_F !== '_' && idy.indexOf(SKLEP_F) < 0) SKLEP_F = '';
+  const ch = (v, t, n) => '<button class="chip' + (SKLEP_F === v ? ' on' : '') + '" onclick="sklepFiltr(\'' + jsq(v) + '\')">' + esc(t) + (n ? ' ' + n : '') + '</button>';
+  let h = '<div class="serwf">' + ch('', 'Все', otw.length || '');
+  (D.sklepy || []).forEach(([id, n]) => { if (licz[id] || SKLEP_F === id) h += ch(id, n, licz[id] || ''); });
+  if (licz['']) h += ch('_', 'Без магазина', licz['']);
+  return h + '<button class="chip" onclick="sklepNowy()" aria-label="Новый магазин">' + I('plus', 1) + '</button></div>';
+}
+function sklepFiltr(v) { SKLEP_F = v; LS.set('sklepF', v); render(); }
+function sklepNowy() {
+  ark('<h4>Новый магазин</h4><input id="snN" class="as-in" style="width:100%" placeholder="Например: Lidl, Kaufland, аптека" onkeydown="if(event.key===\'Enter\')sklepZapisz()">' +
+    '<div class="ab"><button class="btn" onclick="sklepZapisz()">' + I('check', 1) + ' Добавить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
+  setTimeout(() => { const e = document.getElementById('snN'); if (e) e.focus(); }, 60);
+}
+function sklepZapisz() {
+  const n = (document.getElementById('snN').value || '').trim(); if (!n) return;
+  const id = nowyId(); arkZamknij();
+  zmiana('sklepDodaj', { nazwa: n, id: id }, d => { d.sklepy = d.sklepy || []; if (!d.sklepy.some(x => x[1].toLowerCase() === n.toLowerCase())) d.sklepy.push([id, n]); }, 'Магазин добавлен');
+}
+function wierszZakup(o) {
+  const zr = o.status === 'zrobione', c = (D.ceny || {})[o.id], meta = [];
+  if (c && c.o) meta.push('посл. ' + zl(c.o[0]) + (c.o[1] ? ' · ' + esc(c.o[1]) : ''));
+  if (c && c.m && c.o && c.m[0] < c.o[0]) meta.push('<span class="tan">дешевле ' + zl(c.m[0]) + (c.m[1] ? ' · ' + esc(c.m[1]) : '') + '</span>');
+  if (o.notatka) meta.push(I('note', 1));
+  return '<div class="row poz zk' + (zr ? ' done' : '') + (NOWE.has(o.id) ? ' nowy' : '') + '" data-id="' + esc(o.id) + '"><button class="okr-chk" role="checkbox" aria-checked="' + zr + '" aria-label="Куплено" onclick="klik(\'' + jsq(o.id) + '\')">' + I('check', 1) + '</button>' +
+    '<div class="g" onclick="edytuj(\'' + jsq(o.id) + '\')"><div class="t zt"><span class="tx">' + esc(o.tytul) + '</span><span class="dz">' + esc(dzialNazwa(o.dzial || 'inne')) + '</span></div>' +
+    (meta.length ? '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div>' : '') + '</div></div>';
+}
 function wierszPoz(o, zLista) {
+  if (!zLista && !o.rodzic && czyZakupy(o.lista)) return wierszZakup(o);
   const zr = o.status === 'zrobione', pod = podzadania(o.id), gotowe = pod.filter(x => x.status === 'zrobione').length;
   const po = o.termin && o.termin < dzis() && !zr;
   const meta = [];
@@ -851,8 +908,9 @@ function dodajPoz() {
   const e = document.getElementById('nowa'), v = e.value.trim(); if (!v) return;
   const lista = LISTA, zak = czyZakupy(lista), id = nowyId();
   const tytuly = zak ? v.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : [v];
-  zmiana('pozDodaj', { lista: lista, tytul: v, id: id }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: noweId(i ? nowyId() : id), lista: lista, tytul: t, rodzic: '',
-    dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
+  const sk = zak && SKLEP_F && SKLEP_F !== '_' ? SKLEP_F : '';
+  zmiana('pozDodaj', { lista: lista, tytul: v, id: id, sklep: sk }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: noweId(i ? nowyId() : id), lista: lista, tytul: t, rodzic: '',
+    dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', sklep: sk, notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
   setTimeout(() => { const n = document.getElementById('nowa'); if (n) n.focus(); }, 30);
 }
 function pytajWyczysc() {
@@ -870,7 +928,7 @@ function wyczysc() {
 let ED = null;
 function edytuj(id) {
   const o = (D.pozycje || []).find(x => x.id === id); if (!o) return;
-  ED = { id: id, tytul: o.tytul, termin: o.termin || '', dla: o.dla || '', przyp: o.przyp || '', lista: o.lista, dzial: o.dzial || 'inne', notatka: o.notatka || '' };
+  ED = { id: id, tytul: o.tytul, termin: o.termin || '', dla: o.dla || '', przyp: o.przyp || '', lista: o.lista, dzial: o.dzial || 'inne', sklep: o.sklep || '', notatka: o.notatka || '', cenaTekst: '', cenaLad: 0 };
   rysujArkusz();
 }
 function odswiezArkusz() {
@@ -904,6 +962,7 @@ function rysujArkusz() {
       '<label class="edd' + (przypWart === 'inne' ? ' on' : '') + '">' + I('clock', 1) + '<span>своё время</span><input type="datetime-local" value="' + esc(ED.przyp) + '" onchange="edUstaw(\'przyp\',this.value)"></label></div>') +
     '<div class="dwa"><div><label>Список</label><select id="edL" class="as-in" onchange="edUstaw(\'lista\',this.value)">' + listyWszystkie().map(id => '<option value="' + esc(id) + '"' + (ED.lista === id ? ' selected' : '') + '>' + esc(nazwaListy(id)) + '</option>').join('') + '</select></div>' +
     (zak ? '<div><label>Отдел</label><select class="as-in" onchange="edUstaw(\'dzial\',this.value)">' + (D.dzialy || []).map(([k, n]) => '<option value="' + k + '"' + (ED.dzial === k ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>' : '') + '</div>' +
+    (zak ? blokSklepu(o) : '') +
     '<label>Заметка</label><textarea id="edN" class="as-in" rows="2" placeholder="необязательно">' + esc(ED.notatka) + '</textarea>' +
     '<div class="ab"><button class="btn" onclick="zapiszEd()">' + I('check', 1) + ' Сохранить</button><button class="btn2" onclick="ED=null;arkZamknij()">Отмена</button></div>';
   const a = document.getElementById('ark'), bylo = a.classList.contains('on') && a.querySelector('.ar');
@@ -911,6 +970,24 @@ function rysujArkusz() {
   const sc = bylo ? a.querySelector('.ar').scrollTop : 0;
   ark(h, !!bylo);
   if (bylo) { document.getElementById('edT').value = ED.tytul; document.getElementById('edN').value = ED.notatka; a.querySelector('.ar').scrollTop = sc; }
+}
+function blokSklepu(o) {
+  const c = (D.ceny || {})[o.id], idy = (D.sklepy || []).map(x => x[0]);
+  const opc = [['', 'Без магазина']].concat(D.sklepy || []); if (ED.sklep && idy.indexOf(ED.sklep) < 0) opc.push([ED.sklep, ED.sklep]);
+  let h = '<label>Магазин</label><select class="as-in" onchange="edUstaw(\'sklep\',this.value)">' + opc.map(([k, n]) => '<option value="' + esc(k) + '"' + (ED.sklep === k ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
+  if (c && c.o) h += '<div class="mute" style="margin-top:8px">Последняя цена: <b>' + zl(c.o[0]) + '</b>' + (c.o[1] ? ' · ' + esc(c.o[1]) : '') + ' (' + esc(c.o[2].slice(8, 10) + '.' + c.o[2].slice(5, 7)) + ')' +
+    (c.m ? '<br>Минимум за 90 дней: <b>' + zl(c.m[0]) + '</b>' + (c.m[1] ? ' · ' + esc(c.m[1]) : '') : '') + '</div>';
+  h += '<button type="button" class="btn2 szer" style="margin-top:8px"' + (ED.cenaLad ? ' disabled' : '') + ' onclick="szukajCeny()">' + I('spark', 1) + (ED.cenaLad ? ' Ищу акции…' : ' Где дешевле?') + '</button>';
+  if (ED.cenaTekst) h += '<div class="wcena">' + esc(ED.cenaTekst) + '</div><div class="mute" style="font-size:12px">Данные из интернета (газетки, сайты магазинов), могут устареть — проверь на месте.</div>';
+  return h;
+}
+function szukajCeny() {
+  if (!ED || ED.cenaLad) return;
+  const id = ED.id, t = document.getElementById('edT'); if (t) ED.tytul = t.value;
+  ED.cenaLad = 1; ED.cenaTekst = ''; rysujArkusz();
+  api('cenaSzukaj', { id: id, tytul: ED.tytul }).then(w => { if (ED && ED.id === id) ED.cenaTekst = w.tekst; })
+    .catch(e => { if (ED && ED.id === id) ED.cenaTekst = '⚠️ ' + (e.message === 'Failed to fetch' ? 'Нет связи с сервером' : e.message); })
+    .finally(() => { if (ED && ED.id === id) { ED.cenaLad = 0; rysujArkusz(); } });
 }
 function edUstaw(k, v) {
   const t = document.getElementById('edT'), n = document.getElementById('edN'); if (t) ED.tytul = t.value; if (n) ED.notatka = n.value;
@@ -932,7 +1009,7 @@ function zapiszEd() {
   ED.tytul = document.getElementById('edT').value.trim(); ED.notatka = document.getElementById('edN').value.trim();
   if (!ED.tytul) return toast('Название не может быть пустым');
   const zmiany = {};
-  ['tytul', 'termin', 'dla', 'przyp', 'lista', 'dzial', 'notatka'].forEach(k => { if (String(ED[k] || '') !== String(o[k] || '')) zmiany[k] = ED[k] || ''; });
+  ['tytul', 'termin', 'dla', 'przyp', 'lista', 'dzial', 'sklep', 'notatka'].forEach(k => { if (String(ED[k] || '') !== String(o[k] || '')) zmiany[k] = ED[k] || ''; });
   if (zmiany.przyp) zmiany.przyp = zmiany.przyp.slice(0, 16);
   const id = ED.id; ED = null; arkZamknij();
   if (!Object.keys(zmiany).length) return;
@@ -978,9 +1055,11 @@ function wWiecej() {
   if (PODSTR === 'akt') return wAktualizacja();
   if (PODSTR === 'ust') return wUstawienia();
   if (PODSTR === 'info') return wSystem();
+  if (PODSTR === 'wyd' && window.wWydatki) return wWydatki();
   // 0.5.0: porządek – tylko to, czego nie ma gdzie indziej. SOS jest w nagłówku, seria na «Сегодня», Wejscie w «Документы», powiadomienia w Настройки.
   const kafle = [['gear', 'Настройки', 'цвет, фон, уведомления, мои данные, машины', 'podstrona(\'ust\')'],
     ['info', 'Система', D.ja.admin ? 'версия и обновления' : 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']];
+  if (D.wydatkiOk && window.wydOtworz) kafle.unshift(['wallet', 'Траты', 'чеки, магазины, аналитика', 'wydOtworz()']);
   return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';
 }
 function wSystem() {

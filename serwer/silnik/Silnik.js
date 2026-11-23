@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.4.1, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.5.0, 23.11.2026
+ * 0.5.0: sklepy (pole sklep przy pozycji zakupów, automatyczne z działu, uczy się z poprawek), wydatki (arkusz Wydatki, paragon → Claude), ceny (arkusz Ceny: historia z paragonów, najniższa/ostatnia przy pozycji, „Gdzie taniej?” przez wyszukiwanie w sieci). 0.4.2: kolor znaczka marki auta (kolumna kolor w Auta).
  * 0.4.1: rozpoznawanie dokumentów odporniejsze: arkusz Dziennik (surowa odpowiedź Claude), ponowienie przy braku pól, właściciel także po imieniu/nazwisku, uczciwa uwaga „прочитал не полностью”.
  * 0.4.0: skrzynka „Wejście” — pliki wrzucone do folderu Rodzina_Dokumenty/Wejscie same się rozpoznają i trafiają do kategorii (co 15 min lub „Разобрать сейчас”).
  * 0.3.1: pushTest — próbne powiadomienie dla siebie (diagnostyka push).
@@ -19,15 +20,18 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.4.2';
-const SCHEMAT = '5';
+const WERSJA = '0.5.0';
+const SCHEMAT = '6';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
   Wydarzenia:    ['id', 'tytul', 'start', 'kto', 'miejsce', 'przyp', 'przyp_wyslane', 'autor', 'czas'],
   Listy:         ['id', 'nazwa', 'ikona', 'widocznosc', 'kolejnosc', 'zakupy'],
-  Pozycje:       ['id', 'lista', 'tytul', 'rodzic', 'dla', 'od', 'termin', 'przyp', 'przyp_wyslane', 'dzial', 'notatka', 'status', 'czas', 'czas_zrobione', 'kolejnosc'],
-  Dzialy:        ['nazwa', 'dzial', 'czas'],
+  Pozycje:       ['id', 'lista', 'tytul', 'rodzic', 'dla', 'od', 'termin', 'przyp', 'przyp_wyslane', 'dzial', 'notatka', 'status', 'czas', 'czas_zrobione', 'kolejnosc', 'sklep'],
+  Dzialy:        ['nazwa', 'dzial', 'czas', 'sklep'],
+  Sklepy:        ['id', 'nazwa', 'dzialy', 'kolejnosc'],
+  Wydatki:       ['id', 'data', 'kwota', 'kategoria', 'sklep', 'opis', 'kto', 'zrodlo', 'czas'],
+  Ceny:          ['id', 'produkt', 'nazwa', 'sklep', 'cena', 'data', 'wydatek'],
   Zadania:       ['id', 'tytul', 'dla', 'od', 'termin', 'typ', 'status', 'czas', 'czas_zrobione'],
   Zakupy:        ['id', 'nazwa', 'dodal', 'czas', 'kupione', 'kupil', 'czas_kupna'],   // stary arkusz v0.1 — tylko do migracji
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
@@ -54,6 +58,7 @@ const DOK_MAX = 20 * 1024 * 1024;
 const USTAWIENIA_START = [
   ['nazwa_rodziny', 'Семья', 'название в приложении'],
   ['admin', '', 'кто ставит обновления системы (id через запятую; пусто = первый родитель)'],
+  ['model_ceny', 'claude-sonnet-5-5', 'модель для «Где дешевле?» (поиск акций в интернете)'],
   ['akt_edytor', 'vtomchakovsky@gmail.com', 'кто может класть файлы обновлений в папку Rodzina_Aktualizacje'],
   ['strona', 'https://wasylmagic-commits.github.io/Rodzina/', 'адрес приложения (для ссылок)'],
   ['kto_jedzie', '', 'кто нажимает «Еду домой» (id через запятую)'],
@@ -88,8 +93,20 @@ const DZIALY = [
   ['chemia', 'Бытовая химия', 'порош стирал мою моющ средств губк туалетн бумаг салфет пакет мусор фольг пергамент посудомо кондиционер proszek płyn plyn gąbk gabk papier toalet ręczni chusteczk worek work folia kapsułk kapsulk zmywark serwetk'],
   ['higiena', 'Гигиена и аптека', 'шампун мыло зубн паст щётк щетк дезодор крем бритв прокладк тампон пластыр аптек лекарств витамин таблет szampon mydło mydlo past szczoteczk dezodorant krem maszynk podpask plaster lek witamin apteka'],
   ['zwierzeta', 'Для животных', 'корм кошач кот кош наполнит лоток собач karma kot kota żwirek zwirek pies psa'],
+  ['ubrania', 'Одежда и обувь', 'куртк обув ботин кроссов сапог джинс брюк штан плать свитер шапк перчатк носк колгот футболк рубашк бельё белье пижам kurtk but trampk spodni sukien sweter czapk rękawic skarpet koszul bluz piżam'],
+  ['remont', 'Дом и ремонт', 'лампоч батарейк инструмент сверл винт шуруп краск клей скотч удлинит розетк лампа żarówk bateri wkręt śrub farb klej taśm przedłuż'],
   ['inne', 'Другое', '']
 ];
+
+// sklepy: [id, nazwa, działy (po przecinku) — do których sklep jest domyślny]; lista żyje w arkuszu Sklepy, tu tylko start
+const SKLEPY_START = [
+  ['biedronka', 'Biedronka', 'warzywa,nabial,mieso,pieczywo,spozywcze,napoje,mrozonki,slodycze,chemia,higiena,zwierzeta', 1],
+  ['odziez', 'Одежда (Galeria)', 'ubrania', 2],
+  ['budowlany', 'Стройка / Castorama', 'remont', 3],
+  ['inny', 'Другой магазин', '', 4]
+];
+const KAT_WYDATKOW = [['jedzenie', 'Продукты'], ['ubrania', 'Одежда и обувь'], ['auto', 'Авто'], ['dom', 'Дом и ремонт'], ['zdrowie', 'Здоровье и аптека'],
+  ['rozrywka', 'Кафе и развлечения'], ['rachunki', 'Счета и услуги'], ['inne', 'Другое']];
 
 // ---------------------------------------------------------------- instalacja / migracja
 // Nowa rodzina: pusty arkusz → Rozszerzenia → Apps Script → pliki z repozytorium (serwer/) → uruchom instalacja.
@@ -128,6 +145,7 @@ function schemat_(sila) {
   const juz = wiersze_('Ustawienia').map(o => o.klucz);
   USTAWIENIA_START.filter(r => juz.indexOf(r[0]) < 0).forEach(r => us.appendRow(r));
   if (!wiersze_('Listy').length) LISTY_START.forEach(r => ark_('Listy').appendRow(r.map(String)));
+  if (!wiersze_('Sklepy').length) SKLEPY_START.forEach(r => ark_('Sklepy').appendRow(r.map(String)));
   ['Лист1', 'Sheet1', 'Arkusz1'].forEach(n => { const s = ss.getSheetByName(n); if (s && ss.getSheets().length > 1 && s.getLastRow() === 0) ss.deleteSheet(s); });
 
   // migracja v0.1: zakupy i zwykłe zadania → Pozycje (stare wiersze zostają, tylko oznaczone)
@@ -145,6 +163,11 @@ function schemat_(sila) {
     const o = wiersze_('Ustawienia').filter(x => x.klucz === 'kto_jedzie')[0];
     if (o) { const l = listaKto_(o.wartosc); rodzice_().forEach(id => { if (l.indexOf(id) < 0) l.push(id); }); zmien_('Ustawienia', o, { wartosc: l.join(',') }); }
     pr.setProperty('MIGRACJA_03', 'tak');
+  }
+  // migracja 0.5: pozycje zakupów dostają sklep z działu
+  if (pr.getProperty('MIGRACJA_05') !== 'tak') {
+    wiersze_('Pozycje').filter(o => !o.rodzic && o.status !== 'zrobione' && czyZakupy_(o.lista) && !o.sklep).forEach(o => zmien_('Pozycje', o, { sklep: sklepDla_(o.tytul, o.dzial) }));
+    pr.setProperty('MIGRACJA_05', 'tak');
   }
   pr.setProperty('SCHEMAT', SCHEMAT);
 }
@@ -202,9 +225,13 @@ function obsluzZapytanie_(e) {
     if (!ja) throw new Error('Неверный ключ');
     const f = API[p.api];
     if (!f) throw new Error('Неизвестное действие');
-    const lock = LockService.getScriptLock();
-    lock.waitLock(20000);
-    try { schemat_(); wynik = { ok: true, wynik: f(ja, p) }; } finally { lock.releaseLock(); }
+    if (p.api === 'cenaSzukaj' || p.api === 'paragonAnaliza') {   // długie wywołania Claude, nic nie zapisują w arkuszach — bez blokady, żeby nie wstrzymywać reszty
+      schemat_(); wynik = { ok: true, wynik: f(ja, p) };
+    } else {
+      const lock = LockService.getScriptLock();
+      lock.waitLock(20000);
+      try { schemat_(); wynik = { ok: true, wynik: f(ja, p) }; } finally { lock.releaseLock(); }
+    }
   } catch (err) {
     wynik = { ok: false, blad: String(err.message || err) };
   }
@@ -242,18 +269,20 @@ const API = {
     tytuly.forEach((t, i) => dodaj_('Pozycje', {
       id: i === 0 ? idKlienta_(p.id, 'Pozycje') : id_(), lista: rodzic ? rodzic.lista : lista, tytul: t.slice(0, 300), rodzic: rodzic ? rodzic.id : '',
       dla: dla, od: ja.id, termin: p.termin || '', przyp: p.przyp || '', dzial: zakupy ? (p.dzial || dzialDla_(t)) : '',
-      notatka: p.notatka || '', status: 'nowe', czas: teraz_(), kolejnosc: Date.now() + i }));
+      sklep: zakupy ? (p.sklep || sklepDla_(t, p.dzial)) : '', notatka: p.notatka || '', status: 'nowe', czas: teraz_(), kolejnosc: Date.now() + i }));
     if (dla && dla !== ja.id && !rodzic) powiadom_([dla], '✅ Задача от ' + ja.imie + ': ' + tytuly[0] + (p.termin ? ' (до ' + ladnaData_(p.termin) + ')' : ''), false);
     return stan_(ja);
   },
   pozZmien: (ja, p) => {
     const o = znajdz_('Pozycje', p.id); if (!o) throw new Error('Не найдено (возможно, уже удалено)');
     const pola = {};
-    ['tytul', 'dla', 'termin', 'przyp', 'notatka', 'lista', 'dzial'].forEach(k => { if (p[k] !== undefined) pola[k] = String(p[k]).slice(0, 1000); });
+    ['tytul', 'dla', 'termin', 'przyp', 'notatka', 'lista', 'dzial', 'sklep'].forEach(k => { if (p[k] !== undefined) pola[k] = String(p[k]).slice(0, 1000); });
     if (pola.przyp !== undefined && pola.przyp !== String(o.przyp || '')) pola.przyp_wyslane = '';
-    if (pola.dzial && pola.dzial !== String(o.dzial)) zapamietajDzial_(o.tytul, pola.dzial);
+    if (pola.dzial && pola.dzial !== String(o.dzial)) { zapamietajDzial_(o.tytul, pola.dzial); if (p.sklep === undefined) pola.sklep = sklepDla_(o.tytul, pola.dzial); }
+    if (p.sklep !== undefined && pola.sklep !== String(o.sklep || '')) zapamietajSklep_(o.tytul, pola.sklep);
     if (pola.lista && pola.lista !== o.lista) {
       pola.dzial = czyZakupy_(pola.lista) ? (pola.dzial || dzialDla_(o.tytul)) : '';
+      pola.sklep = czyZakupy_(pola.lista) ? (pola.sklep !== undefined ? pola.sklep : (o.sklep || sklepDla_(o.tytul, pola.dzial))) : '';
       wiersze_('Pozycje').filter(x => x.rodzic === o.id).forEach(x => zmien_('Pozycje', x, { lista: pola.lista }));
     }
     const nowyDla = pola.dla !== undefined && pola.dla && pola.dla !== String(o.dla) && pola.dla !== ja.id;
@@ -279,6 +308,48 @@ const API = {
     const zrob = wiersze_('Pozycje').filter(x => x.lista === p.lista && !x.rodzic && x.status === 'zrobione' && widac.indexOf(x.id) >= 0).map(x => x.id);
     usunWiersze_('Pozycje', wiersze_('Pozycje').filter(x => zrob.indexOf(x.id) >= 0 || zrob.indexOf(x.rodzic) >= 0));
     return stan_(ja);
+  },
+
+  // --- sklepy
+  sklepDodaj: (ja, p) => {
+    const nazwa = String(p.nazwa || '').trim().slice(0, 40); if (!nazwa) throw new Error('Пустое название');
+    const jest = wiersze_('Sklepy');
+    if (jest.some(x => norm_(x.nazwa) === norm_(nazwa))) return stan_(ja);
+    dodaj_('Sklepy', { id: idKlienta_(p.id, 'Sklepy'), nazwa: nazwa, dzialy: '', kolejnosc: jest.length + 1 });
+    return stan_(ja);
+  },
+
+  // --- wydatki (tylko rodzice) i ceny
+  wydatki: (ja, p) => { tylkoRodzic_(ja); return wydatkiMiesiac_(String(p.mies || '').match(/^\d{4}-\d\d$/) ? p.mies : dzien_().slice(0, 7)); },
+  paragonAnaliza: (ja, p) => { tylkoRodzic_(ja); return paragonAnaliza_(p); },
+  wydatekDodaj: (ja, p) => {
+    tylkoRodzic_(ja);
+    const kwota = liczba_(p.kwota); if (!(kwota > 0)) throw new Error('Нужна сумма');
+    const data = /^\d{4}-\d\d-\d\d$/.test(p.data || '') ? p.data : dzien_();
+    const kat = KAT_WYDATKOW.some(k => k[0] === p.kategoria) ? p.kategoria : 'inne';
+    const id = idKlienta_(p.id, 'Wydatki');
+    dodaj_('Wydatki', { id: id, data: data, kwota: kwota.toFixed(2), kategoria: kat, sklep: String(p.sklep || '').slice(0, 60), opis: String(p.opis || '').slice(0, 200),
+      kto: ja.id, zrodlo: p.zrodlo === 'paragon' ? 'paragon' : 'reczne', czas: teraz_() });
+    let poz = []; try { poz = JSON.parse(p.pozycje || '[]'); } catch (e) {}
+    (Array.isArray(poz) ? poz : []).slice(0, 80).forEach(x => {
+      const cena = liczba_(x.cena); const produkt = norm_(x.produkt || x.nazwa);
+      if (cena > 0 && produkt) dodaj_('Ceny', { id: id_(), produkt: produkt, nazwa: String(x.nazwa || '').slice(0, 80), sklep: String(p.sklep || '').slice(0, 60), cena: cena.toFixed(2), data: data, wydatek: id });
+    });
+    return wydatkiMiesiac_(data.slice(0, 7));
+  },
+  wydatekUsun: (ja, p) => {
+    tylkoRodzic_(ja);
+    const o = znajdz_('Wydatki', p.id); if (!o) return wydatkiMiesiac_(String(p.mies || dzien_().slice(0, 7)));
+    usunWiersze_('Ceny', wiersze_('Ceny').filter(x => x.wydatek === o.id));
+    const mies = tekstDaty_(o.data).slice(0, 7);
+    usunWiersze_('Wydatki', [o]);
+    return wydatkiMiesiac_(mies);
+  },
+  // „Gdzie taniej?”: Claude szuka aktualnych akcji w sieci (płatne — tylko na żądanie)
+  cenaSzukaj: (ja, p) => {
+    const o = znajdz_('Pozycje', p.id), t = o ? o.tytul : String(p.tytul || '').trim().slice(0, 100);
+    if (!t) throw new Error('Не найдено');
+    return cenaSzukaj_(t);
   },
 
   // --- kuchnia (seria dziecka)
@@ -646,6 +717,20 @@ function dzialDla_(nazwa) {
   }));
   return naj;
 }
+// sklep domyślny: nauczony z poprawek (Dzialy.sklep) → sklep, dla którego dział jest „domyślny” → pusto
+function sklepDla_(nazwa, dzial) {
+  const n = norm_(nazwa);
+  const nauczone = n ? wiersze_('Dzialy').filter(o => o.nazwa === n && o.sklep)[0] : null;
+  if (nauczone) return String(nauczone.sklep);
+  const d = dzial || dzialDla_(nazwa);
+  const s = wiersze_('Sklepy').filter(x => String(x.dzialy || '').split(',').map(t => t.trim()).indexOf(d) >= 0)[0];
+  return s ? String(s.id) : '';
+}
+function zapamietajSklep_(nazwa, sklep) {
+  const n = norm_(nazwa); if (!n) return;
+  const o = wiersze_('Dzialy').filter(x => x.nazwa === n)[0];
+  if (o) zmien_('Dzialy', o, { sklep: sklep, czas: teraz_() }); else dodaj_('Dzialy', { nazwa: n, dzial: dzialDla_(nazwa), sklep: sklep, czas: teraz_() });
+}
 function zapamietajDzial_(nazwa, dzial) {   // ręczna poprawka działu = nauka na przyszłość
   const n = norm_(nazwa); if (!n) return;
   const o = wiersze_('Dzialy').filter(x => x.nazwa === n)[0];
@@ -665,7 +750,7 @@ function stan_(ja) {
     .filter(o => ja.rola === 'rodzic' || o.dla === ja.id || o.od === ja.id)
     .map(o => ({ id: o.id, tytul: o.tytul, dla: o.dla, od: o.od, termin: tekstDaty_(o.termin).slice(0, 10), typ: o.typ, status: o.status }));
   const poz = widocznePozycje_(ja, false).map(o => ({ id: String(o.id), lista: o.lista, tytul: o.tytul, rodzic: String(o.rodzic || ''), dla: o.dla, od: o.od,
-    termin: tekstDaty_(o.termin).slice(0, 10), przyp: tekstDaty_(o.przyp), dzial: o.dzial, notatka: o.notatka, status: o.status,
+    termin: tekstDaty_(o.termin).slice(0, 10), przyp: tekstDaty_(o.przyp), dzial: o.dzial, sklep: String(o.sklep || ''), notatka: o.notatka, status: o.status,
     czas: tekstDaty_(o.czas), kolejnosc: Number(o.kolejnosc) || 0 }));
   const listy = wiersze_('Listy').filter(l => l.widocznosc !== 'rodzice' || ja.rola === 'rodzic' || poz.some(x => x.lista === l.id))
     .sort((a, b) => Number(a.kolejnosc) - Number(b.kolejnosc))
@@ -679,6 +764,8 @@ function stan_(ja) {
     wersja: WERSJA, rodzina: { nazwa: ust_('nazwa_rodziny') || 'Семья' },
     ja: { id: ja.id, imie: ja.imie, rola: ja.rola, push: !!ja.push, admin: czyAdmin_(ja) }, ludzie: ludzie,
     listy: listy, pozycje: poz, dzialy: DZIALY.map(d => [d[0], d[1]]),
+    sklepy: wiersze_('Sklepy').sort((a, b) => Number(a.kolejnosc) - Number(b.kolejnosc)).map(x => [String(x.id), String(x.nazwa)]),
+    ceny: cenyDlaPozycji_(poz), katWyd: KAT_WYDATKOW, wydatkiOk: ja.rola === 'rodzic',
     wydarzenia: wyd, zadania: zad, powiadomienia: pw,
     jade: listaKto_(ust_('kto_jedzie')).indexOf(ja.id) >= 0,
     seria: seriaKto ? seria_(seriaKto) : { dni: 0, zrobione: 0 }, seriaKto: seriaKto,
@@ -879,6 +966,113 @@ function noc_() {
   const dz = dzien_();
   wiersze_('Zadania').filter(o => o.typ === 'kuchnia' && o.status === 'nowe' && tekstDaty_(o.termin).slice(0, 10) <= dz)
     .forEach(o => zmien_('Zadania', o, { status: 'przegapione' }));
+}
+
+// ---------------------------------------------------------------- wydatki, paragony, ceny
+function tylkoRodzic_(ja) { if (ja.rola !== 'rodzic') throw new Error('Траты видят только родители'); }
+function liczba_(v) { const n = parseFloat(String(v === undefined || v === null ? '' : v).replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+const mniej_ = (a, b) => Math.round((a - b) * 100) / 100;
+
+function wydatkiMiesiac_(mies) {
+  const wszystkie = wiersze_('Wydatki').map(o => ({ id: String(o.id), data: tekstDaty_(o.data).slice(0, 10), kwota: liczba_(o.kwota), kategoria: String(o.kategoria || 'inne'),
+    sklep: String(o.sklep || ''), opis: String(o.opis || ''), kto: String(o.kto || ''), zrodlo: String(o.zrodlo || '') }));
+  const y = Number(mies.slice(0, 4)), m = Number(mies.slice(5, 7));
+  const poprz = m === 1 ? (y - 1) + '-12' : y + '-' + ('0' + (m - 1)).slice(-2);
+  const wMies = wszystkie.filter(o => o.data.slice(0, 7) === mies).sort((a, b) => a.data < b.data ? 1 : a.data > b.data ? -1 : 0);
+  const wPoprz = wszystkie.filter(o => o.data.slice(0, 7) === poprz);
+  const suma = l => Math.round(l.reduce((t, o) => t + o.kwota, 0) * 100) / 100;
+  const grupuj = (l, f) => { const g = {}; l.forEach(o => { const k = f(o) || '—'; g[k] = g[k] || [0, 0]; g[k][0] += o.kwota; g[k][1]++; });
+    return Object.keys(g).map(k => [k, Math.round(g[k][0] * 100) / 100, g[k][1]]).sort((a, b) => b[1] - a[1]); };
+  const poKat = grupuj(wMies, o => o.kategoria), poKatPoprz = {}; grupuj(wPoprz, o => o.kategoria).forEach(x => poKatPoprz[x[0]] = x[1]);
+  const ludzie = {}; wiersze_('Ludzie').forEach(o => ludzie[o.id] = o.imie);
+  return { mies: mies, razem: suma(wMies), poprz: suma(wPoprz), poprzMies: poprz, poKat: poKat, poKatPoprz: poKatPoprz,
+    poSklepie: grupuj(wMies, o => o.sklep).slice(0, 8), n: wMies.length, analiza: analizaCen_(mies),
+    lista: wMies.slice(0, 60).map(o => Object.assign({}, o, { ktoImie: ludzie[o.kto] || o.kto })) };
+}
+
+// analityka z paragonów: najczęstsze zakupy miesiąca i produkty, które w różnych sklepach kosztują różnie (90 dni, ostatnia cena w każdym sklepie)
+function analizaCen_(mies) {
+  const ceny = wiersze_('Ceny').map(c => ({ p: String(c.produkt), s: String(c.sklep || '—'), c: liczba_(c.cena), d: tekstDaty_(c.data).slice(0, 10) })).filter(c => c.p && c.c > 0);
+  const top = {}; ceny.filter(c => c.d.slice(0, 7) === mies).forEach(c => { top[c.p] = top[c.p] || [0, 0]; top[c.p][0] += c.c; top[c.p][1]++; });
+  const najczestsze = Object.keys(top).map(k => [k, Math.round(top[k][0] * 100) / 100, top[k][1]]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const od = dzien_(plusDni_(-90)), poProd = {};
+  ceny.filter(c => c.d >= od).forEach(c => { const g = poProd[c.p] = poProd[c.p] || {}; if (!g[c.s] || c.d >= g[c.s].d) g[c.s] = c; });
+  const roznice = Object.keys(poProd).map(k => { const l = Object.keys(poProd[k]).map(sk => [sk, poProd[k][sk].c]).sort((a, b) => a[1] - b[1]);
+    return [k, l, l.length > 1 ? mniej_(l[l.length - 1][1], l[0][1]) : 0]; }).filter(x => x[2] > 0).sort((a, b) => b[2] - a[2]).slice(0, 6);
+  return { najczestsze: najczestsze, roznice: roznice, pozycji: ceny.length };
+}
+
+// ostatnia i najniższa (90 dni) cena z paragonów dla otwartych pozycji zakupów: { idPozycji: { o: [cena, sklep, data], m: [cena, sklep, data] } }
+function cenyDlaPozycji_(poz) {
+  const otwarte = poz.filter(o => !o.rodzic && o.status !== 'zrobione' && czyZakupy_(o.lista));
+  if (!otwarte.length) return {};
+  const ceny = wiersze_('Ceny').map(c => ({ p: String(c.produkt), s: String(c.sklep), c: liczba_(c.cena), d: tekstDaty_(c.data).slice(0, 10) })).filter(c => c.p && c.c > 0);
+  if (!ceny.length) return {};
+  const od = dzien_(plusDni_(-90)), wynik = {};
+  otwarte.forEach(o => {
+    const n = norm_(o.tytul); if (!n) return;
+    const traf = ceny.filter(c => c.p === n || (n.length >= 4 && c.p.length >= 4 && (c.p.indexOf(n) === 0 || n.indexOf(c.p) === 0)));
+    if (!traf.length) return;
+    const ost = traf.reduce((a, b) => b.d >= a.d ? b : a);
+    const swieze = traf.filter(c => c.d >= od);
+    const min = swieze.length ? swieze.reduce((a, b) => b.c < a.c ? b : a) : null;
+    wynik[o.id] = { o: [ost.c, ost.s, ost.d], m: min ? [min.c, min.s, min.d] : null };
+  });
+  return wynik;
+}
+
+// paragon (zdjęcie JPEG) → Claude → { sklep, data, suma, kategoria, pozycje:[{nazwa, produkt, cena}] }; nic nie zapisuje
+function paragonAnaliza_(p) {
+  const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
+  if (!key) throw new Error('Нет CLAUDE_KEY — чек читать некому');
+  if (!p.b64) throw new Error('Нет фото чека');
+  const sklepy = wiersze_('Sklepy').map(x => x.nazwa).join(', ');
+  const sys = 'Ты читаешь кассовый чек (Польша). Сегодня ' + dzien_() + '. Известные магазины семьи: ' + sklepy + '. ' +
+    'Ответь ТОЛЬКО JSON: {"sklep":"название магазина как на чеке, коротко (Biedronka, Lidl, Kaufland, Zara…)","data":"YYYY-MM-DD","suma":число (итого к оплате, SUMA PLN),' +
+    '"kategoria":"jedzenie|ubrania|auto|dom|zdrowie|rozrywka|rachunki|inne — по смыслу чека","pozycje":[{"nazwa":"как на чеке","produkt":"общее название товара по-русски в нижнем регистре, единственное число, без бренда и веса, например яйца, молоко, хлеб, куриное филе","cena":число — цена за строку после скидки}]}. ' +
+    'Скидки (rabat) вычитай из цены своей строки. Не выдумывай позиции: если что-то нечитаемо, пропусти её. Числа с точкой.';
+  const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 2500, system: sys, messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: String(p.b64) } }, { type: 'text', text: 'Прочитай чек.' }] }] })
+  });
+  const kod = r.getResponseCode();
+  dziennik_('paragon', '', 'HTTP ' + kod, r.getContentText().slice(0, 1400));
+  if (kod !== 200) throw new Error('Claude не ответил (HTTP ' + kod + ')');
+  const tekst = (JSON.parse(r.getContentText()).content || []).map(c => c.text || '').join('');
+  const m = tekst.match(/\{[\s\S]*\}/); let j = null;
+  try { j = m ? JSON.parse(m[0]) : null; } catch (e) {}
+  if (!j) throw new Error('Не смог прочитать чек — сфотографируй ровнее, чтобы влез весь чек');
+  const poz = (Array.isArray(j.pozycje) ? j.pozycje : []).map(x => ({ nazwa: String(x.nazwa || '').slice(0, 80), produkt: norm_(x.produkt || x.nazwa), cena: liczba_(x.cena) }))
+    .filter(x => x.cena > 0 && x.produkt);
+  let suma = liczba_(j.suma); if (!(suma > 0)) suma = Math.round(poz.reduce((t, x) => t + x.cena, 0) * 100) / 100;
+  const sk = String(j.sklep || '').trim(), znany = wiersze_('Sklepy').filter(x => sk && norm_(sk).indexOf(norm_(String(x.nazwa).split(/[ (/]/)[0])) >= 0)[0];
+  return { sklep: znany ? String(znany.nazwa) : sk.slice(0, 60), data: /^\d{4}-\d\d-\d\d$/.test(j.data || '') ? j.data : dzien_(), suma: suma,
+    kategoria: KAT_WYDATKOW.some(k => k[0] === j.kategoria) ? j.kategoria : 'jedzenie', pozycje: poz.slice(0, 80) };
+}
+
+function cenaSzukaj_(produkt) {
+  const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
+  if (!key) throw new Error('Нет CLAUDE_KEY');
+  const sys = 'Ты помогаешь семье в Познани (Польша) найти, где сейчас дешевле купить товар. Сегодня ' + dzien_() + '. Ищи в интернете актуальные акции и цены в польских магазинах ' +
+    '(gazetki: Biedronka, Lidl, Kaufland, Auchan, Carrefour, Netto, Stokrotka, Żabka; для одежды и прочего — подходящие сети и интернет-магазины). ' +
+    'Ответ по-русски, коротко: до 5 строк вида «Магазин — цена — условия/до какой даты акция». В конце одна строка «Дешевле всего: …». ' +
+    'Если актуальной цены не нашёл — так и скажи, ничего не выдумывай, цены без источника не называй. Всегда указывай, за какое количество цена (за шт., кг, упаковку).';
+  const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify({ model: ust_('model_ceny') || 'claude-sonnet-5-5', max_tokens: 900, system: sys,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4, user_location: { type: 'approximate', city: 'Poznań', country: 'PL' } }],
+      messages: [{ role: 'user', content: 'Где сейчас дешевле всего купить: ' + produkt + '?' }] })
+  });
+  const kod = r.getResponseCode(), tr = r.getContentText();
+  dziennik_('cena', produkt, 'HTTP ' + kod, tr.slice(0, 600));
+  if (kod !== 200) {
+    let msg = ''; try { msg = (JSON.parse(tr).error || {}).message || ''; } catch (e) {}
+    throw new Error(/web.?search/i.test(msg) ? 'Поиск в интернете не включён в консоли Anthropic (Console → Settings → Privacy → Web search)' : 'Claude не ответил (HTTP ' + kod + ')');
+  }
+  const tekst = (JSON.parse(tr).content || []).filter(c => c.type === 'text').map(c => c.text || '').join('').trim();
+  if (!tekst) throw new Error('Ничего не нашёл');
+  return { tekst: tekst, produkt: produkt, kiedy: teraz_() };
 }
 
 // ---------------------------------------------------------------- szybkie dodawanie przez Claude
