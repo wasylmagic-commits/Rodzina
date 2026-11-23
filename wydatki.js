@@ -28,6 +28,7 @@
       '<button style="flex:0 0 56px" onclick="wydMies(1)" aria-label="Позже"' + (WYD.mies >= D.dzis.slice(0, 7) ? ' disabled style="opacity:.3"' : '') + '><span style="display:inline-block;transform:scaleX(-1)">' + I('back', 1) + '</span></button></div>';
     h += '<div class="szybko" style="gap:10px"><label class="btn" style="flex:1"><input type="file" accept="image/*" capture="environment" hidden onchange="wydFoto(this)">' + I('camera', 1) + ' Фото чека</label>' +
       '<button class="btn2" style="min-height:46px" onclick="wydForma()">' + I('plus', 1) + ' Вручную</button></div>';
+    if (D.ja.admin) h += '<button class="btn2 szer" style="margin:10px 0 0" onclick="paragonyTeraz()">' + I('note', 1) + 'Загрузить чеки из папки Paragony</button>';
     if (WYD.blad) return h + '<div class="card"><h3>' + I('alert', 1) + 'Не получилось</h3><div class="mute">' + esc(WYD.blad) + '</div><button class="btn2 szer" style="margin-top:10px" onclick="wydOdswiez()">Повторить</button></div>';
     const d = WYD.dane;
     if (!d) return h + '<div class="card"><div class="empty mala">Загружаю…</div></div>';
@@ -103,3 +104,11 @@
     api('wydatekUsun', { id: id, mies: WYD.mies }).then(w => { WYD.dane = w; arkZamknij(); toast('Удалено'); }).catch(e => toast(e.message));
   };
 })();
+window.paragonyTeraz = async function () {
+  toast('Читаю чеки из папки Paragony…');
+  try {
+    const r = await api('paragonyTeraz');
+    toast(r.ile ? 'Загружено чеков: ' + r.ile + (r.zostalo ? ' (ещё ' + r.zostalo + ' — нажми снова)' : '') + (r.bledy ? ', не прочитано: ' + r.bledy : '') : (r.bledy ? 'Не получилось прочитать файлов: ' + r.bledy : 'Новых чеков в папке нет'));
+    if (window.wydOdswiez) wydOdswiez();
+  } catch (e) { toast('Не вышло: ' + e.message); }
+};

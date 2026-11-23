@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.6.0, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.7.0, 23.11.2026
+ * 0.7.0: import paragonów z plików JSON (fiskalny JSON z aplikacji Biedronka) z folderu Rodzina_Dokumenty/Paragony — bez API, tylko nazwy towarów idą do Claude (tani zapytanie tekstowe); ceny jednostkowe po rabatach → Ceny, suma → Wydatki.
  * 0.6.0: koniec ręcznego przypisywania sklepu do pozycji; arkusz Plan: „Gdzie co kupić” (akcje z sieci jednym zapytaniem na całą listę + ostatnie ceny z paragonów), ranking sklepów liczy aplikacja.
  * 0.5.0: sklepy (pole sklep przy pozycji zakupów, automatyczne z działu, uczy się z poprawek), wydatki (arkusz Wydatki, paragon → Claude), ceny (arkusz Ceny: historia z paragonów, najniższa/ostatnia przy pozycji, „Gdzie taniej?” przez wyszukiwanie w sieci). 0.4.2: kolor znaczka marki auta (kolumna kolor w Auta).
  * 0.4.1: rozpoznawanie dokumentów odporniejsze: arkusz Dziennik (surowa odpowiedź Claude), ponowienie przy braku pól, właściciel także po imieniu/nazwisku, uczciwa uwaga „прочитал не полностью”.
@@ -21,7 +22,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.6.0';
+const WERSJA = '0.7.0';
 const SCHEMAT = '7';
 
 const ARKUSZE = {
@@ -401,6 +402,12 @@ const API = {
   wejscieTeraz: (ja) => {
     if (!czyAdmin_(ja)) throw new Error('Только администратор');
     return { ile: wejscie_(10) };
+  },
+
+  // ręczny import paragonów z folderu Paragony (admin)
+  paragonyTeraz: (ja) => {
+    if (!czyAdmin_(ja)) throw new Error('Только администратор');
+    return paragony_(25);
   },
 
   pushToken: (ja, p) => { zmien_('Ludzie', ja, { push: p.t || '' }); return { ok: 1 }; },
@@ -888,6 +895,7 @@ function co15_() {
     przypomnienia_();
     przypomnieniaPozycji_();
     try { wejscie_(3); } catch (e) {}
+    try { paragony_(6); } catch (e) {}
     const pr = PropertiesService.getScriptProperties(), dz = dzien_(), g = godz_();
     if (g >= ust_('poranek') && g < '12:00' && pr.getProperty('poranek') !== dz) { pr.setProperty('poranek', dz); podsumowanie_('poranek'); }
     if (g >= ust_('wieczor') && g < '23:00' && pr.getProperty('wieczor') !== dz) { pr.setProperty('wieczor', dz); podsumowanie_('wieczor'); }
@@ -1063,6 +1071,92 @@ function paragonAnaliza_(p) {
   const sk = String(j.sklep || '').trim(), znany = wiersze_('Sklepy').filter(x => sk && norm_(sk).indexOf(norm_(String(x.nazwa).split(/[ (/]/)[0])) >= 0)[0];
   return { sklep: znany ? String(znany.nazwa) : sk.slice(0, 60), data: /^\d{4}-\d\d-\d\d$/.test(j.data || '') ? j.data : dzien_(), suma: suma,
     kategoria: KAT_WYDATKOW.some(k => k[0] === j.kategoria) ? j.kategoria : 'jedzenie', pozycje: poz.slice(0, 80) };
+}
+
+// ---------------------------------------------------------------- import paragonów z JSON (folder Rodzina_Dokumenty/Paragony)
+function folderParagony_() {
+  const f = folderDok_(), it = f.getFoldersByName('Paragony');
+  return it.hasNext() ? it.next() : f.createFolder('Paragony');
+}
+function czystyTekst_(h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;| /g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim(); }
+
+// fiskalny JSON (Biedronka: kwoty w groszach, rabat to osobna linia zaraz po pozycji) → { sklep, data, suma, pozycje:[{nazwa, ilosc, cena (jednostkowa po rabacie), razem}], uwaga }
+function paragonZJson_(tekst) {
+  const j = JSON.parse(tekst), body = Array.isArray(j.body) ? j.body : [], head = Array.isArray(j.header) ? j.header : [];
+  let sklepTxt = '', iso = '';
+  head.forEach(h => {
+    if (h.headerText) sklepTxt += ' ' + czystyTekst_(h.headerText.headerTextLines);
+    if (h.headerData && h.headerData.date) iso = h.headerData.date;
+  });
+  const linie = [];
+  let suma = 0;
+  body.forEach(b => {
+    if (b.sellLine) {
+      const l = b.sellLine, ilosc = liczba_(l.quantity) || 1, razem = Number(l.total) || 0;
+      if (l.isStorno) { const i = linie.map(x => x.nazwa).lastIndexOf(czystyTekst_(l.name)); if (i >= 0) linie.splice(i, 1); return; }
+      linie.push({ nazwa: czystyTekst_(l.name).replace(/\s+[A-G]$/, ''), ilosc: ilosc, brutto: razem, rabat: 0, jedn: Number(l.price) || 0 });
+    } else if (b.discountLine && linie.length) {
+      const d = b.discountLine, v = Number(d.value) || 0;
+      if (!d.isStorno) linie[linie.length - 1].rabat += v; else linie[linie.length - 1].rabat -= v;
+    } else if (b.sumInCurrency) suma = Number(b.sumInCurrency.fiscalTotal) || suma;
+    else if (b.fiscalFooter && b.fiscalFooter.date) iso = b.fiscalFooter.date;
+  });
+  const pozycje = linie.map(l => { const netto = l.brutto - l.rabat; return { nazwa: l.nazwa, ilosc: l.ilosc, razem: Math.round(netto) / 100,
+    cena: (l.rabat === 0 && l.jedn > 0 ? l.jedn : Math.round(netto / l.ilosc)) / 100 }; }).filter(x => x.nazwa && x.cena > 0);
+  const poz = pozycje.reduce((t, x) => t + x.razem, 0);
+  if (!(suma > 0)) suma = Math.round(poz * 100);
+  const uwaga = Math.abs(poz - suma / 100) > 0.05 ? 'проверь: сумма позиций ' + poz.toFixed(2) + ' ≠ итог ' + (suma / 100).toFixed(2) : '';
+  if (!iso) throw new Error('нет даты');
+  return { sklep: sklepKanon_(SIECI.filter(x => norm_(sklepTxt).indexOf(norm_(x)) >= 0)[0] || sklepTxt.split(/\s{2,}|\d/)[0] || 'Sklep'),
+    data: dzien_(new Date(iso)), suma: suma / 100, pozycje: pozycje, uwaga: uwaga };
+}
+
+// skróty z paragonu → ogólna nazwa po rosyjsku (do dopasowania z listą zakupów); jedno tanie zapytanie tekstowe na paragon
+function nazwyOgolne_(nazwy) {
+  const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
+  const awaryjnie = () => nazwy.map(n => norm_(n));
+  if (!key || !nazwy.length) return awaryjnie();
+  try {
+    const sys = 'Ты читаешь названия товаров с польского кассового чека (сокращённые, часто обрезанные, иногда с весом). Для каждой строки дай ОБЩЕЕ название товара по-русски: нижний регистр, единственное число, без бренда, веса и вкуса, например яйца, молоко, хлеб, куриное филе, колбаса, сыр, помидоры. ' +
+      'Если не уверен — коротко опиши по-русски, что это. Ответь ТОЛЬКО JSON-массивом строк, столько же элементов, сколько строк, в том же порядке.';
+    const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 1800, system: sys, messages: [{ role: 'user', content: nazwy.map((n, i) => (i + 1) + '. ' + n).join('\n') }] }) });
+    if (r.getResponseCode() !== 200) { dziennik_('paragon-json', '', 'HTTP ' + r.getResponseCode(), r.getContentText().slice(0, 500)); return awaryjnie(); }
+    const t = (JSON.parse(r.getContentText()).content || []).map(c => c.text || '').join(''), m = t.match(/\[[\s\S]*\]/);
+    const a = m ? JSON.parse(m[0]) : null;
+    if (!Array.isArray(a) || a.length !== nazwy.length) return awaryjnie();
+    return a.map((x, i) => norm_(x) || norm_(nazwy[i]));
+  } catch (e) { dziennik_('paragon-json', '', 'wyjątek', e.message); return awaryjnie(); }
+}
+
+// przerabia do `limit` nowych plików .json z „Paragony”; zwraca { ile, bledy }. Wczytany plik dostaje opis „rodzina:wczytany”
+function paragony_(limit) {
+  const admin = wiersze_('Ludzie').filter(o => o.id === adminId_())[0];
+  if (!admin) return { ile: 0, bledy: 0 };
+  const znane = {}; wiersze_('Wydatki').forEach(o => znane[String(o.id)] = 1);
+  const it = folderParagony_().getFiles();
+  let ile = 0, bledy = 0, zostalo = 0;
+  while (it.hasNext()) {
+    const plik = it.next();
+    if (String(plik.getDescription() || '').indexOf('rodzina:') === 0) continue;
+    if (ile + bledy >= limit) { zostalo++; continue; }
+    const nazwa = plik.getName(), id = 'par_' + nazwa.replace(/\.[^.]+$/, '').replace(/[^\w-]/g, '').slice(0, 40);
+    if (!/\.json$/i.test(nazwa)) { plik.setDescription('rodzina:nieobslugiwany'); continue; }
+    if (znane[id]) { plik.setDescription('rodzina:wczytany'); continue; }
+    try {
+      const p = paragonZJson_(plik.getBlob().getDataAsString('UTF-8'));
+      const ogolne = nazwyOgolne_(p.pozycje.map(x => x.nazwa));
+      const kat = /rossmann|hebe/i.test(p.sklep) ? 'zdrowie' : 'jedzenie';
+      dodaj_('Wydatki', { id: id, data: p.data, kwota: p.suma.toFixed(2), kategoria: kat, sklep: p.sklep, opis: ('Чек из файла, ' + p.pozycje.length + ' поз. ' + p.uwaga).trim().slice(0, 200), kto: admin.id, zrodlo: 'paragon', czas: teraz_() });
+      p.pozycje.forEach((x, i) => { const produkt = ogolne[i]; if (produkt) dodaj_('Ceny', { id: id_(), produkt: produkt, nazwa: x.nazwa.slice(0, 80), sklep: p.sklep, cena: x.cena.toFixed(2), data: p.data, wydatek: id }); });
+      znane[id] = 1; plik.setDescription('rodzina:wczytany'); ile++;
+    } catch (e) {
+      bledy++; plik.setDescription('rodzina:blad ' + String(e.message).slice(0, 80));
+      dziennik_('paragon-json', nazwa, 'wyjątek', String(e.message).slice(0, 300));
+    }
+  }
+  return { ile: ile, bledy: bledy, zostalo: zostalo };
 }
 
 // ---------------------------------------------------------------- „Gdzie co kupić”
