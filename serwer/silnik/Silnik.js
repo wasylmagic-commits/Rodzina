@@ -22,7 +22,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.7.0';
+const WERSJA = '0.7.1';
 const SCHEMAT = '7';
 
 const ARKUSZE = {
@@ -1051,7 +1051,7 @@ function paragonAnaliza_(p) {
   const sklepy = wiersze_('Sklepy').map(x => x.nazwa).join(', ');
   const sys = 'Ты читаешь кассовый чек (Польша). Сегодня ' + dzien_() + '. Известные магазины семьи: ' + sklepy + '. ' +
     'Ответь ТОЛЬКО JSON: {"sklep":"название магазина как на чеке, коротко (Biedronka, Lidl, Kaufland, Zara…)","data":"YYYY-MM-DD","suma":число (итого к оплате, SUMA PLN),' +
-    '"kategoria":"jedzenie|ubrania|auto|dom|zdrowie|rozrywka|rachunki|inne — по смыслу чека","pozycje":[{"nazwa":"как на чеке","produkt":"общее название товара по-русски в нижнем регистре, единственное число, без бренда и веса, например яйца, молоко, хлеб, куриное филе","cena":число — цена за строку после скидки}]}. ' +
+    '"kategoria":"jedzenie|ubrania|auto|dom|zdrowie|rozrywka|rachunki|inne — по смыслу чека","pozycje":[{"nazwa":"как на чеке","produkt":"общее название товара по-русски в нижнем регистре, единственное число, без бренда и веса, например яйца, молоко, хлеб, куриное филе","ilosc":число (штук или кг),"razem":число — сумма строки после скидки,"cena":число — цена ЗА ЕДИНИЦУ (за 1 шт. или 1 кг) после скидки}]}. ' +
     'Скидки (rabat) вычитай из цены своей строки. Не выдумывай позиции: если что-то нечитаемо, пропусти её. Числа с точкой.';
   const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -1065,7 +1065,7 @@ function paragonAnaliza_(p) {
   const m = tekst.match(/\{[\s\S]*\}/); let j = null;
   try { j = m ? JSON.parse(m[0]) : null; } catch (e) {}
   if (!j) throw new Error('Не смог прочитать чек — сфотографируй ровнее, чтобы влез весь чек');
-  const poz = (Array.isArray(j.pozycje) ? j.pozycje : []).map(x => ({ nazwa: String(x.nazwa || '').slice(0, 80), produkt: norm_(x.produkt || x.nazwa), cena: liczba_(x.cena) }))
+  const poz = (Array.isArray(j.pozycje) ? j.pozycje : []).map(x => ({ nazwa: String(x.nazwa || '').slice(0, 80), produkt: norm_(x.produkt || x.nazwa), cena: liczba_(x.cena) || Math.round(liczba_(x.razem) / (liczba_(x.ilosc) || 1) * 100) / 100 }))
     .filter(x => x.cena > 0 && x.produkt);
   let suma = liczba_(j.suma); if (!(suma > 0)) suma = Math.round(poz.reduce((t, x) => t + x.cena, 0) * 100) / 100;
   const sk = String(j.sklep || '').trim(), znany = wiersze_('Sklepy').filter(x => sk && norm_(sk).indexOf(norm_(String(x.nazwa).split(/[ (/]/)[0])) >= 0)[0];

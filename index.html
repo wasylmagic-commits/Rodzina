@@ -460,7 +460,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.6.2';
+const WERSJA_APLIKACJI = '0.6.3';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -853,8 +853,10 @@ function panelPlanu(otw) {
   otw.forEach(o => { const x = pl[o.id]; if (!x || !x.s) return; const e = g[x.s] = g[x.s] || { n: 0, oszcz: 0 }; e.n++; if (x.c2 > x.c) e.oszcz += x.c2 - x.c; });
   const klucze = Object.keys(g).sort((a, b) => g[b].n - g[a].n || g[b].oszcz - g[a].oszcz);
   if (SKLEP_F && !g[SKLEP_F]) SKLEP_F = '';
-  let h = '<button class="btn2 szer" style="margin-bottom:10px"' + (PLAN_LAD ? ' disabled' : '') + ' onclick="planSzukaj()">' + I('spark', 1) +
-    (PLAN_LAD ? ' Ищу акции и цены… (до минуты)' : klucze.length ? ' Обновить: где что купить' : ' Где что купить') + '</button>';
+  let h = '<div class="szybko" style="gap:10px;margin-bottom:10px"><button class="btn2" style="flex:1;min-height:46px"' + (PLAN_LAD ? ' disabled' : '') + ' onclick="planSzukaj()">' + I('spark', 1) +
+    (PLAN_LAD ? ' Ищу…' : klucze.length ? ' Обновить цены' : ' Где что купить') + '</button>' +
+    (D.wydatkiOk && window.wydFoto ? '<label class="btn" style="flex:1;min-height:46px"><input type="file" accept="image/*" capture="environment" hidden onchange="wydFoto(this)">' + I('camera', 1) + ' Фото чека</label>' : '') + '</div>';
+  if (PLAN_LAD) h += '<div class="mute plm" style="margin:-4px 0 10px">Ищу акции и цены, до минуты…</div>';
   if (!klucze.length) return h;
   const brak = otw.filter(o => !pl[o.id]).length;
   h += '<div class="card plan"><h3>' + I('cart', 1) + 'Куда идти</h3>' +
