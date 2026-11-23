@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.3.1, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.4.1, 23.11.2026
+ * 0.4.1: rozpoznawanie dokumentów odporniejsze: arkusz Dziennik (surowa odpowiedź Claude), ponowienie przy braku pól, właściciel także po imieniu/nazwisku, uczciwa uwaga „прочитал не полностью”.
  * 0.4.0: skrzynka „Wejście” — pliki wrzucone do folderu Rodzina_Dokumenty/Wejscie same się rozpoznają i trafiają do kategorii (co 15 min lub „Разобрать сейчас”).
  * 0.3.1: pushTest — próbne powiadomienie dla siebie (diagnostyka push).
  * 0.3.0: dokumenty (Drive, rozpoznanie przez Claude, termin ważności), auta, „moje dane” (SOS/kolizja), ustawienia rodziny w aplikacji,
@@ -18,8 +19,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.4.0';
-const SCHEMAT = '3';
+const WERSJA = '0.4.1';
+const SCHEMAT = '4';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -32,6 +33,7 @@ const ARKUSZE = {
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
   Ustawienia:    ['klucz', 'wartosc', 'opis'],
   Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas'],
+  Dziennik:      ['czas', 'zrodlo', 'plik', 'status', 'odpowiedz'],
   Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas']
 };
 
@@ -458,33 +460,78 @@ function folderDok_() {
 }
 function folderKat_(k) { const f = folderDok_(), n = kategoria_(k)[2], it = f.getFoldersByName(n); return it.hasNext() ? it.next() : f.createFolder(n); }
 
-// propozycja dla „куда положить”: Claude patrzy na pierwszą stronę; bez klucza — słowa z nazwy
+// dziennik rozpoznawania (arkusz Dziennik): co odpowiedział Claude, dlaczego pole wypadło — do diagnozy
+function dziennik_(zrodlo, plik, status, odp) {
+  try { dodaj_('Dziennik', { czas: teraz_(), zrodlo: zrodlo, plik: String(plik || '').slice(0, 120), status: String(status || '').slice(0, 120), odpowiedz: String(odp || '').slice(0, 1500) }); } catch (e) {}
+}
+// właściciel: id, albo imię / nazwisko z dokumentu („Vasyl Tomchakovskyi”), albo „rodzina”
+function wlascicielZ_(w, ludzie) {
+  const n = norm_(w); if (!n) return '';
+  if (n === 'rodzina') return 'rodzina';
+  const poId = ludzie.filter(o => norm_(o.id) === n)[0]; if (poId) return poId.id;
+  const slowa = x => norm_(x).split(/[^a-zа-яąćęłńóśźż0-9]+/).filter(t => t.length > 2);
+  const sl = slowa(n);
+  const traf = ludzie.filter(o => {
+    const moje = slowa((o.imie || '') + ' ' + (o.nazwisko || ''));
+    return moje.some(t => sl.indexOf(t) >= 0) || sl.some(t => norm_(o.nazwisko).indexOf(t) >= 0 && t.length > 4);
+  });
+  return traf.length === 1 ? traf[0].id : '';
+}
+function wolajClaudeDok_(key, sys, p, dopisek) {
+  const odp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 700, system: sys, messages: [{ role: 'user', content: [
+      (p.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: String(p.b64) } }
+        : { type: 'image', source: { type: 'base64', media_type: p.mime || 'image/jpeg', data: String(p.b64) } }),
+      { type: 'text', text: 'Пишет: ' + p.ja + '. Имя файла: ' + String(p.nazwa || '—') + (dopisek || '') } ] }] })
+  });
+  return { kod: odp.getResponseCode(), tekst: odp.getContentText() };
+}
+// propozycja dla „куда положить”: Claude patrzy na dokument; bez klucza — słowa z nazwy
 function analizaDok_(ja, p) {
   const ludzie = wiersze_('Ludzie'), auta = wiersze_('Auta');
   const zNazwy = zgadnijKat_(String(p.nazwa || '') + ' ' + String(p.tytul || ''));
   const key = PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY');
-  if (!key || !p.b64) return { kategoria: zNazwy, zrodlo: 'nazwa' };
+  if (!key || !p.b64) { dziennik_('analiza', p.nazwa, key ? 'brak pliku' : 'brak klucza CLAUDE_KEY', ''); return { kategoria: zNazwy, zrodlo: 'nazwa' }; }
   const sys = 'Ты раскладываешь документы семьи по папкам. Сегодня ' + dzien_() + '. Люди: ' + ludzie.map(o => o.id + '=' + o.imie + (o.nazwisko ? ' (' + o.nazwisko + ')' : '')).join(', ') +
     '. Машины: ' + (auta.length ? auta.map(a => a.id + '=' + a.nazwa + ' ' + a.marka + ' ' + a.nr_rej).join(', ') : 'нет') +
-    '. Категории: ' + KATEGORIE.map(k => k[0] + '=' + k[1]).join(', ') + ' (ubezp — любые полисы, OC/AC, страховка жилья, путешествий; auto — техпаспорт dowód rejestracyjny, przegląd, счета за ремонт; ' +
+    '. Категории: ' + KATEGORIE.map(k => k[0] + '=' + k[1]).join(', ') + ' (ubezp — любые полисы, OC/AC, OC в życiu prywatnym, страховка жилья, путешествий; auto — техпаспорт dowód rejestracyjny, przegląd, счета за ремонт; ' +
     'med — справки, направления skierowanie, результаты анализов, рецепты, выписки; rodzina — паспорта, карты побыту, PESEL, свидетельства, дипломы, договоры работы; dom — аренда, счета, коммуналка, банк; szkola — школа, техникум, оценки). ' +
-    'Ответь ТОЛЬКО JSON: {"kategoria":"…","tytul":"короткое понятное название по-русски, до 6 слов, например «Полис OC Fiesta 2026»","wlasciciel":"id человека или rodzina",' +
-    '"auto":"id машины или пусто","wazny_do":"YYYY-MM-DD — до какого числа документ действует (полис, техосмотр, карта, паспорт), иначе пусто","opis":"одна фраза, что это"}';
+    'Имя файла может ничего не значить (например «wydruk») — смотри на содержимое. Владелец: сверь имя и фамилию в документе (Ubezpieczający / Ubezpieczony, imię i nazwisko) со списком людей и верни ИХ id. ' +
+    'Срок: для полиса — конец «Okresu ubezpieczenia» (формат YYYY-MM-DD). ' +
+    'Ответь ТОЛЬКО JSON, все поля заполняй: {"kategoria":"…","tytul":"короткое понятное название по-русски, до 6 слов, например «Полис OC Fiesta 2026»","wlasciciel":"id человека из списка или rodzina",' +
+    '"auto":"id машины или пусто","wazny_do":"YYYY-MM-DD — до какого числа документ действует (полис, техосмотр, карта, паспорт), иначе пусто","opis":"одна-две фразы: что это, страховщик, номер, суммы и даты платежей, если есть"}';
+  const rozbierz = t => {
+    const m = String(t).match(/\{[\s\S]*\}/); if (!m) return null;
+    try { return JSON.parse(m[0]); } catch (e) { return null; }
+  };
+  let j = null, wiad = '';
   try {
-    const r = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 300, system: sys, messages: [{ role: 'user', content: [
-        (p.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: String(p.b64) } }
-          : { type: 'image', source: { type: 'base64', media_type: p.mime || 'image/jpeg', data: String(p.b64) } }),
-        { type: 'text', text: 'Пишет: ' + ja.id + '. Имя файла: ' + String(p.nazwa || '—') } ] }] })
-    });
-    if (r.getResponseCode() !== 200) return { kategoria: zNazwy, zrodlo: 'nazwa' };
-    const t = (JSON.parse(r.getContentText()).content || []).map(c => c.text || '').join(''), m = t.match(/\{[\s\S]*\}/);
-    const j = m ? JSON.parse(m[0]) : {};
-    return { kategoria: kategoria_(j.kategoria)[0], tytul: String(j.tytul || '').slice(0, 80), wlasciciel: ludzie.some(o => o.id === j.wlasciciel) || j.wlasciciel === 'rodzina' ? j.wlasciciel : '',
-      auto: auta.some(a => a.id === j.auto) ? j.auto : '', wazny_do: /^\d{4}-\d\d-\d\d$/.test(j.wazny_do || '') ? j.wazny_do : '', opis: String(j.opis || '').slice(0, 200), zrodlo: 'claude' };
-  } catch (e) { return { kategoria: zNazwy, zrodlo: 'nazwa' }; }
+    for (let proba = 1; proba <= 2; proba++) {
+      const w = wolajClaudeDok_(key, sys, { b64: p.b64, mime: p.mime, nazwa: p.nazwa, ja: ja.id },
+        proba === 1 ? '' : '. Предыдущий ответ был неполным или не JSON: верни ПОЛНЫЙ JSON со всеми полями, без пояснений.');
+      let tekst = '';
+      if (w.kod === 200) tekst = (JSON.parse(w.tekst).content || []).map(c => c.text || '').join('');
+      dziennik_('analiza #' + proba, p.nazwa, 'HTTP ' + w.kod, w.kod === 200 ? tekst : w.tekst);
+      if (w.kod !== 200) { wiad = 'HTTP ' + w.kod; if (w.kod === 429 || w.kod >= 500) { Utilities.sleep(3000); continue; } break; }
+      const kandydat = rozbierz(tekst);
+      if (kandydat) {
+        j = kandydat;
+        const wl = wlascicielZ_(j.wlasciciel, ludzie);
+        if (String(j.tytul || '').trim() && wl) break;       // pełny wynik
+        wiad = 'неполный ответ';
+      } else wiad = 'не JSON';
+    }
+  } catch (e) { dziennik_('analiza', p.nazwa, 'wyjątek', e.message); wiad = String(e.message).slice(0, 80); }
+  if (!j) return { kategoria: zNazwy, zrodlo: 'nazwa', powod: wiad };
+  const wl = wlascicielZ_(j.wlasciciel, ludzie), tytul = String(j.tytul || '').trim().slice(0, 80);
+  const brak = [];
+  if (!tytul) brak.push('названия');
+  if (!wl) brak.push('владельца');
+  return { kategoria: kategoria_(j.kategoria)[0], tytul: tytul, wlasciciel: wl,
+    auto: auta.some(a => a.id === j.auto) ? j.auto : '', wazny_do: /^\d{4}-\d\d-\d\d$/.test(j.wazny_do || '') ? j.wazny_do : '', opis: String(j.opis || '').slice(0, 300), zrodlo: 'claude',
+    niepelne: brak.length ? 'не получил от Claude: ' + brak.join(', ') : '' };
 }
 // ---------------------------------------------------------------- skrzynka „Wejście”: pliki wrzucone prosto do folderu
 function folderWejscie_() {
@@ -516,7 +563,8 @@ function wejscie_(limit) {
       const uwagi = [];
       let wlasc = r.wlasciciel;
       if (!wlasc) { wlasc = admin.id; uwagi.push('проверь: не понял, чей это документ, записал на ' + admin.imie); }
-      if (r.zrodlo !== 'claude') uwagi.push('проверь: разложил только по названию файла, содержимое не читал');
+      if (r.zrodlo !== 'claude') uwagi.push('проверь: разложил только по названию файла, содержимое не прочитал' + (r.powod ? ' (' + r.powod + ')' : ''));
+      else if (r.niepelne) uwagi.push('проверь: прочитал не полностью — ' + r.niepelne);
       const nazwa = dzien_() + ' ' + tytul + rozsz, folder = folderKat_(kat[0]);
       let wynik = plik;
       try { plik.moveTo(folder); plik.setName(nazwa); }
