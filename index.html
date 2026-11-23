@@ -10,89 +10,365 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="mobile-web-app-capable" content="yes">
+<script src="config.js"></script>
 <style>
-  /* Семья v0.1 — тот же «стеклянный» стиль, что у Serwis myjni, тёплый акцент */
-  :root{--bg:#f2f2f7;--card:rgba(255,255,255,.7);--solid:#fff;--ink:#000;--mute:rgba(60,60,67,.62);--line:rgba(60,60,67,.14);
-    --acc:#ff7a1a;--acc2:rgba(255,122,26,.13);--grn:#248a3d;--grnbg:rgba(52,199,89,.16);--red:#ff3b30;--redbg:rgba(255,59,48,.12);
-    --fill:rgba(118,118,128,.12);--sh:0 8px 28px rgba(0,0,0,.07);--r:22px;
-    --b1:rgba(255,149,0,.26);--b2:rgba(255,45,85,.16);--b3:rgba(52,199,89,.14);
-    --f:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,sans-serif}
-  @media (prefers-color-scheme:dark){:root{--bg:#000;--card:rgba(44,44,48,.55);--solid:#1c1c1e;--ink:#fff;--mute:rgba(235,235,245,.6);--line:rgba(84,84,88,.5);
-    --acc:#ff9f0a;--acc2:rgba(255,159,10,.2);--grn:#30d158;--grnbg:rgba(48,209,88,.18);--red:#ff453a;--redbg:rgba(255,69,58,.2);--fill:rgba(118,118,128,.24);
-    --sh:0 10px 30px rgba(0,0,0,.45);--b1:rgba(255,159,10,.22);--b2:rgba(255,55,95,.16);--b3:rgba(48,209,88,.1)}}
+  /* ===== Serwis myjni – styl iOS 26 „Liquid Glass” (15.11.2026) ===== */
+  :root{
+    --bg:#f2f2f7;--bg2:#e5e5ea;--card:rgba(255,255,255,.66);--solid:#fff;--ink:#000;--mute:rgba(60,60,67,.62);--line:rgba(60,60,67,.16);
+    --acc:#007aff;--acc2:rgba(0,122,255,.12);--accg:linear-gradient(135deg,#0a84ff 0%,#5e5ce6 55%,#bf5af2 100%);
+    --red:#ff3b30;--redbg:rgba(255,59,48,.13);--org:#f08a00;--orgbg:rgba(255,149,0,.15);--yel:#a87b00;--yelbg:rgba(255,204,0,.2);--grn:#248a3d;--grnbg:rgba(52,199,89,.16);--c2:#af52de;
+    --fill:rgba(118,118,128,.12);--hl:rgba(255,255,255,.85);--glass:rgba(255,255,255,.58);
+    --sh:0 1px 1px rgba(0,0,0,.02),0 8px 28px rgba(0,0,0,.07);--nav:64px;--r:24px;
+    --spring:cubic-bezier(.32,1.28,.54,1);--ease:cubic-bezier(.2,.8,.2,1);
+    --f:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",system-ui,Roboto,sans-serif;
+    --fr:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --b1:rgba(10,132,255,.30);--b2:rgba(191,90,242,.22);--b3:rgba(48,209,88,.16)}
+  @media (prefers-color-scheme:dark){:root:not([data-t=jasny]){
+    --bg:#000;--bg2:#1c1c1e;--card:rgba(44,44,48,.52);--solid:#1c1c1e;--ink:#fff;--mute:rgba(235,235,245,.6);--line:rgba(84,84,88,.5);
+    --acc:#0a84ff;--acc2:rgba(10,132,255,.2);--red:#ff453a;--redbg:rgba(255,69,58,.2);--org:#ff9f0a;--orgbg:rgba(255,159,10,.2);--yel:#ffd60a;--yelbg:rgba(255,214,10,.17);--grn:#30d158;--grnbg:rgba(48,209,88,.18);--c2:#bf5af2;
+    --fill:rgba(118,118,128,.24);--hl:rgba(255,255,255,.14);--glass:rgba(40,40,44,.5);--sh:0 10px 30px rgba(0,0,0,.45);
+    --b1:rgba(10,132,255,.32);--b2:rgba(191,90,242,.26);--b3:rgba(48,209,88,.12)}}
+  :root[data-t=ciemny]{
+    --bg:#000;--bg2:#1c1c1e;--card:rgba(44,44,48,.52);--solid:#1c1c1e;--ink:#fff;--mute:rgba(235,235,245,.6);--line:rgba(84,84,88,.5);
+    --acc:#0a84ff;--acc2:rgba(10,132,255,.2);--red:#ff453a;--redbg:rgba(255,69,58,.2);--org:#ff9f0a;--orgbg:rgba(255,159,10,.2);--yel:#ffd60a;--yelbg:rgba(255,214,10,.17);--grn:#30d158;--grnbg:rgba(48,209,88,.18);--c2:#bf5af2;
+    --fill:rgba(118,118,128,.24);--hl:rgba(255,255,255,.14);--glass:rgba(40,40,44,.5);--sh:0 10px 30px rgba(0,0,0,.45);
+    --b1:rgba(10,132,255,.32);--b2:rgba(191,90,242,.26);--b3:rgba(48,209,88,.12)}
   *{box-sizing:border-box}
   html{background:var(--bg)}
-  body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.35 var(--f);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
-    padding:calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 96px)}
-  body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;filter:blur(30px);
-    background:radial-gradient(40% 30% at 85% 8%,var(--b1),transparent 70%),radial-gradient(45% 35% at 5% 40%,var(--b2),transparent 70%),radial-gradient(40% 30% at 80% 80%,var(--b3),transparent 70%)}
-  button{font:inherit;color:inherit;cursor:pointer;border:0;transition:transform .25s}
-  button:active{transform:scale(.96)}
+  body{margin:0;min-height:100vh;background:transparent;color:var(--ink);font:17px/1.35 var(--f);letter-spacing:-.24px;
+       -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+  /* tło pod szkłem – miękkie kolorowe światła */
+  body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
+    background:radial-gradient(40% 30% at 85% 8%,var(--b1),transparent 70%),radial-gradient(45% 35% at 5% 35%,var(--b2),transparent 70%),radial-gradient(40% 30% at 80% 75%,var(--b3),transparent 70%);
+    filter:blur(30px);animation:glow 24s ease-in-out infinite alternate}
+  @keyframes glow{to{transform:translate3d(-4%,3%,0) scale(1.08)}}
+  svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;vertical-align:middle}
+  svg.i.s{width:17px;height:17px;stroke-width:2.1}
+  a{color:var(--acc);text-decoration:none}
+  button{font:inherit;cursor:pointer;color:inherit;transition:transform .35s var(--spring),background .2s,opacity .2s;touch-action:manipulation}
+  button:active,.w:active,label:active{transform:scale(.96);transition-duration:.08s}
   button:disabled{opacity:.45}
-  input,select{font:inherit;color:inherit;width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--solid);outline:none}
-  input:focus,select:focus{border-color:var(--acc)}
-  header{display:flex;align-items:center;gap:10px;margin:6px 2px 14px}
-  header h1{font-size:30px;margin:0;flex:1;letter-spacing:-.5px}
-  .ib{width:40px;height:40px;border-radius:50%;background:var(--card);box-shadow:var(--sh);font-size:18px}
-  .card{background:var(--card);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
-    border-radius:var(--r);box-shadow:var(--sh);padding:14px 16px;margin-bottom:12px}
-  .card h3{margin:0 0 8px;font-size:15px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.3px}
-  .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
-  .card h3+.row,.card .row:first-child{border-top:0}
-  .g{flex:1;min-width:0}
-  .mute{color:var(--mute);font-size:14px}
-  .t{font-weight:500}
-  .done .t{text-decoration:line-through;opacity:.5}
-  .btn{background:var(--acc);color:#fff;border-radius:14px;padding:12px 18px;font-weight:600}
-  .btn2{background:var(--fill);border-radius:14px;padding:10px 14px;font-weight:500}
-  .chk{width:28px;height:28px;border-radius:50%;border:2px solid var(--mute);background:transparent;flex:0 0 auto;font-size:15px;line-height:1}
-  .done .chk{background:var(--grn);border-color:var(--grn);color:#fff}
-  .x{background:transparent;color:var(--mute);font-size:20px;padding:4px 8px}
-  .pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:10px;background:var(--fill);margin-right:4px}
-  .pill.a{background:var(--acc2);color:var(--acc)}
-  .empty{color:var(--mute);text-align:center;padding:12px 0;font-size:15px}
-  .jade{width:100%;background:linear-gradient(135deg,#ff9500,#ff2d55);color:#fff;font-size:22px;font-weight:700;border-radius:20px;padding:20px}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .chip{background:var(--fill);border-radius:16px;padding:8px 14px;font-size:15px}
-  .chip.on{background:var(--acc);color:#fff}
-  .seria{display:flex;align-items:center;gap:14px}
-  .seria b{font-size:38px;line-height:1}
-  .bar{height:8px;border-radius:4px;background:var(--fill);overflow:hidden;margin-top:6px}
-  .bar i{display:block;height:100%;background:var(--acc);border-radius:4px}
-  .szybko{display:flex;gap:8px;margin-bottom:12px}
-  .szybko input{border-radius:20px;background:var(--card);box-shadow:var(--sh);border:0}
-  .szybko button{flex:0 0 auto;width:48px;border-radius:50%;background:var(--acc);color:#fff;font-size:22px}
-  .pw.nowe .t{font-weight:700}
-  .pw.nowe::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--acc);flex:0 0 auto}
-  .dzien{font-size:14px;font-weight:600;color:var(--acc);margin:14px 4px 6px}
-  #nav{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:space-around;
-    background:var(--card);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border-radius:28px;box-shadow:var(--sh);padding:6px;z-index:9}
-  #nav button{flex:1;background:transparent;border-radius:22px;padding:6px 0;font-size:12px;color:var(--mute)}
-  #nav button span{display:block;font-size:22px;line-height:1.2}
-  #nav button.on{background:var(--acc2);color:var(--acc)}
-  #nav .licz{background:var(--red);color:#fff;border-radius:9px;font-size:11px;padding:0 5px;margin-left:2px}
-  #ark{position:fixed;inset:0;z-index:20;display:none}
+
+  /* ---------- szkło ---------- */
+  .card,.tile,.seg,.more button,#bnav .in,.ib,input[type=search],textarea,select.as-in,input.as-in,.btn2{
+    -webkit-backdrop-filter:blur(24px) saturate(190%);backdrop-filter:blur(24px) saturate(190%)}
+
+  /* ---------- pasek górny (nawigacja) ---------- */
+  header{position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top)}
+  header::before{content:"";position:absolute;inset:0 0 -26px;z-index:-1;pointer-events:none;opacity:0;transition:opacity .25s;
+    background:linear-gradient(var(--bg) 35%,color-mix(in srgb,var(--bg) 55%,transparent) 70%,transparent);
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+  header.sc::before,#det header::before{opacity:1}
+  .top{display:flex;align-items:center;gap:10px;padding:8px 16px;max-width:760px;margin:0 auto;min-height:52px}
+  .top h1{font-size:17px;margin:0;flex:1;font-weight:600;letter-spacing:-.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+  .top h1 small{display:block;font-weight:400;color:var(--mute);font-size:12px;letter-spacing:0}
+  #hd .top h1{opacity:0;transform:translateY(6px);transition:opacity .2s,transform .3s var(--ease)}
+  #hd.sc .top h1{opacity:1;transform:none}
+  #det .top h1{text-align:left}
+  .logo{width:36px;height:36px;border-radius:10px;background:var(--accg);color:#fff;display:flex;align-items:center;justify-content:center;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 4px 14px rgba(10,132,255,.35)}
+  .logo svg{width:20px;height:20px;stroke-width:2.4}
+  .logo img{width:100%;height:100%;border-radius:inherit;display:block}
+  /* arkusz od dołu (jak w iOS) */
+  #ark{position:fixed;inset:0;z-index:25;display:none}
   #ark.on{display:block}
-  #ark .tlo{position:absolute;inset:0;background:rgba(0,0,0,.35)}
-  #ark .ar{position:absolute;left:0;right:0;bottom:0;background:var(--solid);border-radius:24px 24px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 18px);max-height:88vh;overflow:auto}
-  #ark h4{margin:0 0 12px;font-size:20px}
-  #ark label{display:block;font-size:14px;color:var(--mute);margin:10px 2px 4px}
-  .ab{display:flex;gap:10px;margin-top:16px}
-  .ab button{flex:1}
-  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:18px;font-size:15px;z-index:30;opacity:0;transition:opacity .3s;pointer-events:none;max-width:88%;text-align:center}
-  #toast.on{opacity:1}
-  .wait{opacity:.5;pointer-events:none}
+  #ark .tlo{position:absolute;inset:0;background:rgba(0,0,0,.32);animation:fade .3s both}
+  #ark .ar{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;padding:8px 18px 18px;border-radius:32px;
+           background:var(--glass);-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);
+           box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line),0 20px 60px rgba(0,0,0,.3);animation:sheet .5s var(--spring) both}
+  #ark .ar::before{content:"";display:block;width:36px;height:5px;border-radius:3px;background:var(--mute);opacity:.5;margin:0 auto 12px;box-shadow:0 0 0 14px transparent}
+  #ark .ar{overscroll-behavior:contain}
+  #ark h4{margin:0 0 2px;font-size:20px;font-weight:700;letter-spacing:.2px}
+  #ark .duza{font:700 40px/1.1 var(--fr);text-align:center;margin:14px 0 4px;padding:12px;letter-spacing:1px}
+  #ark .ab{display:flex;gap:10px;margin-top:6px} #ark .ab button{flex:1}
+  #ark .btn2{min-height:46px;justify-content:center;font-size:17px;text-align:center;line-height:1.15}
+  @keyframes sheet{from{transform:translateY(110%)}to{transform:none}}
+  @keyframes fade{from{opacity:0}}
+  .ib{border:0;background:var(--glass);color:var(--ink);border-radius:50%;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;
+      box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line),0 4px 14px rgba(0,0,0,.08)}
+  .ib.spin svg{animation:spin .8s linear infinite;color:var(--acc)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* duży tytuł jak w aplikacjach Apple */
+  .lt{padding:2px 4px 14px}
+  .lt small{display:block;font-size:13px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.2px;margin-bottom:1px}
+  .lt h1{margin:0;font-size:34px;line-height:1.12;font-weight:700;letter-spacing:.37px}
+
+  /* ---------- przyciski ---------- */
+  .btn{border:0;background:var(--acc);color:#fff;border-radius:999px;min-height:46px;padding:0 22px;font-size:17px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+       box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(0,0,0,.08),0 6px 18px color-mix(in srgb,var(--acc) 38%,transparent)}
+  .btn2{border:0;background:var(--acc2);color:var(--acc);border-radius:999px;min-height:36px;padding:0 14px;display:inline-flex;align-items:center;gap:5px;font-size:15px;font-weight:600;box-shadow:inset 0 1px 0 var(--hl)}
+  .sw{border:0;position:relative;width:51px;height:31px;border-radius:999px;background:var(--fill);flex:0 0 auto;padding:0;margin:0;cursor:pointer;transition:background .25s;box-shadow:inset 0 0 0 .5px var(--line);-webkit-tap-highlight-color:transparent}
+  .sw i{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 3px 1px rgba(0,0,0,.06);transition:transform .4s var(--spring)}
+  .sw[aria-checked=true]{background:#34c759}
+  #ark select.as-in,#ark input.as-in{font:inherit;font-size:16px;color:var(--ink);background:var(--fill);border:0;border-radius:14px;padding:10px 14px;margin:0;outline:none;color-scheme:light dark;-webkit-appearance:none;appearance:none}
+  #ark select.as-in{width:100%;padding-right:36px;background:var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat calc(100% - 12px) 50%/16px}
+  .edd{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-radius:999px;background:var(--fill);color:var(--ink);font-size:14px;font-weight:600;overflow:hidden}
+  .edd .i{width:15px;height:15px}
+  .edd input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;padding:0;border:0}
+  #ark textarea{margin-bottom:0}
+  .edl{color:var(--acc);font-weight:600;cursor:pointer} .edl .i{width:13px;height:13px;vertical-align:-2px}
+  .sw.sw-r[aria-checked=false]{background:var(--red)} .sw.sw-o[aria-checked=false]{background:var(--org)}
+  .sw[aria-checked=true] i{transform:translateX(20px)}
+  .swl{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--mute,#8e8e93);font-weight:600}
+  #toast button{border:0;background:none;color:#ffd60a;font:inherit;margin-left:14px;padding:0}
+  .chk{border:0;background:var(--grnbg);color:var(--grn);border-radius:50%;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .chk svg{stroke-width:2.6}
+
+  /* ---------- pasek kart (dół) – pływająca kapsuła ---------- */
+  #bnav{position:fixed;left:14px;right:14px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:6;display:flex;justify-content:center;pointer-events:none}
+  #bnav .in{pointer-events:auto;position:relative;display:flex;width:100%;max-width:520px;padding:5px;border-radius:999px;background:var(--glass);
+            box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line),0 14px 40px rgba(0,0,0,.18)}
+  #bnav .lens{position:absolute;top:5px;bottom:5px;left:0;border-radius:999px;background:var(--fill);
+              box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line);transition:transform .5s var(--spring),width .5s var(--spring)}
+  #bnav button{position:relative;z-index:1;flex:1;border:0;background:none;color:var(--ink);height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+               font-size:10px;font-weight:600;letter-spacing:.1px;padding:0;min-width:0;border-radius:999px}
+  #bnav button span{opacity:.85}
+  #bnav button.on{color:var(--acc)}
+  #bnav button.on svg{stroke-width:2.3;transform:scale(1.08)}
+  #bnav button svg{width:24px;height:24px;transition:transform .45s var(--spring)}
+
+  /* ---------- treść ---------- */
+  main{padding:4px 16px calc(var(--nav) + 44px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
+  main.anim>*{animation:up .55s var(--spring) both}
+  main.anim>*:nth-child(2){animation-delay:.03s} main.anim>*:nth-child(3){animation-delay:.06s} main.anim>*:nth-child(4){animation-delay:.09s} main.anim>*:nth-child(n+5){animation-delay:.12s}
+  @keyframes up{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+  .card{background:var(--card);border-radius:var(--r);padding:14px 16px;margin-bottom:14px;box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line),var(--sh)}
+  .card h3{margin:0 0 8px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:7px;color:var(--acc);letter-spacing:-.2px}
+  .card h3 svg{color:var(--acc)}
+  .card h3 .mute{font-size:15px}
+
+  /* widżety */
+  .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:14px}
+  .tile{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:inset 0 1px 0 var(--hl),inset 0 0 0 .5px var(--line),var(--sh);display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+  .tile .ch{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .tile .ch svg{width:20px;height:20px;stroke-width:2.2}
+  .tile .ch.o{background:linear-gradient(160deg,#ffb340,#ff9500)} .tile .ch.ok{background:linear-gradient(160deg,#4cd964,#28b44a)}
+  .tile .ch.r{background:linear-gradient(160deg,#ff6961,#ff3b30)} .tile .ch.y{background:linear-gradient(160deg,#ffe066,#ffcc00)}
+  .tile b{display:block;font:700 26px/1.1 var(--fr);letter-spacing:0}
+  .tile span{color:var(--mute);font-size:13px;font-weight:500}
+
+  /* wiersze listy */
+  .row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:.5px solid var(--line);min-height:44px}
+  .card h3 + .row,.row:first-child,.card>.row:first-child{border-top:0}
+  .row .g{flex:1;min-width:0}
+  .row .g>b{font-weight:600}
+  .row.w{cursor:pointer;transition:transform .35s var(--spring)}
+  .row.w::after{content:"";flex:0 0 auto;width:8px;height:8px;border-right:2.2px solid var(--mute);border-top:2.2px solid var(--mute);transform:rotate(45deg);opacity:.55;margin:0 2px 0 -2px;border-radius:1px}
+  .av{width:40px;height:40px;border-radius:12px;background:var(--accg);color:#fff;display:flex;align-items:center;justify-content:center;font:700 13px var(--fr);flex:0 0 auto;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 10px rgba(10,132,255,.25)}
+  .av.k-orlen{background:linear-gradient(150deg,#ff4d4d,#d1001c);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 10px rgba(209,0,28,.3)}
+  .av.k-bp{background:linear-gradient(150deg,#8fd14f,#00914c);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 10px rgba(0,145,76,.3)}
+  .av.k-shell{background:linear-gradient(150deg,#ffd84d,#f2a900);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 10px rgba(242,169,0,.3)}
+  .av svg{width:21px;height:21px;stroke-width:2.1}
+  .mute{color:var(--mute);font-size:15px}
+  .row .mute{font-size:14px;margin-top:1px}
+  .pill.serw{cursor:pointer;font-size:12px;padding:3px 9px}.pill.serw.cud{background:rgba(255,159,10,.16);color:var(--ora,#c77700)}
+  .serwf{display:flex;gap:8px;overflow-x:auto;margin:2px 0 10px;padding-bottom:2px}.serwf:empty{display:none}.serwf .chip{flex:0 0 auto;border:0;border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;background:var(--fill);color:var(--mute)}.serwf .chip.on{background:var(--acc);color:#fff}
+  .pill{display:inline-block;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:600;white-space:nowrap;background:var(--fill);color:var(--mute)}
+  .r{background:var(--redbg);color:var(--red)} .o{background:var(--orgbg);color:var(--org)} .y{background:var(--yelbg);color:var(--yel)} .ok{background:var(--grnbg);color:var(--grn)}
+
+  /* pola */
+  input[type=search],textarea,main select.as-in,main input.as-in,#ark input{width:100%;font:inherit;font-size:17px;color:var(--ink);background:var(--fill);border:0;border-radius:14px;padding:11px 14px;margin-bottom:12px;outline:none;
+      transition:box-shadow .2s;-webkit-appearance:none;appearance:none}
+  input[type=search]{padding-left:38px;border-radius:999px;height:42px;
+      background:var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E") no-repeat 13px 50%/17px}
+  input::placeholder,textarea::placeholder{color:var(--mute)}
+  input[type=search]:focus,textarea:focus,main select.as-in:focus,main input.as-in:focus{box-shadow:0 0 0 3.5px color-mix(in srgb,var(--acc) 35%,transparent)}
+  textarea{min-height:84px;resize:vertical}
+  main select.as-in{padding-right:36px;background:var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat calc(100% - 12px) 50%/16px}
+  /* przełącznik iOS zamiast kwadratu */
+  input[type=checkbox],#ark input[type=checkbox]{padding:0;-webkit-appearance:none;appearance:none;width:51px!important;height:31px!important;flex:0 0 auto;border-radius:999px;background:var(--fill);position:relative;margin:0;cursor:pointer;
+      transition:background .25s;box-shadow:inset 0 0 0 .5px var(--line)}
+  input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 3px 1px rgba(0,0,0,.06);transition:transform .4s var(--spring)}
+  input[type=checkbox]:checked,#ark input[type=checkbox]:checked{background:#34c759}
+  input[type=checkbox]:checked::after{transform:translateX(20px)}
+
+  /* kontrolka segmentowa */
+  .seg{display:flex;gap:2px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding:3px;background:var(--fill);border-radius:999px}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{flex:1 0 auto;border:0;background:none;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:5px;opacity:.8}
+  .seg button.on{background:var(--solid);opacity:1;box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04)}
+  .w{cursor:pointer}
+
+  /* oś czasu */
+  .tl{position:relative;margin-left:6px;padding-left:18px}
+  .tl::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--acc),transparent);border-radius:2px}
+  .tl div{margin-bottom:14px;position:relative;font-size:15px}
+  .tl div::before{content:"";position:absolute;left:-23px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 3px var(--solid),0 0 12px color-mix(in srgb,var(--acc) 60%,transparent)}
+  .tl i{font-style:normal;color:var(--mute);font-size:13px;display:block;font-weight:600;margin-bottom:1px}
+
+  /* szczegóły myjni – ekran „push” jak w iOS */
+  #det{position:fixed;inset:0;background:var(--bg);z-index:10;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch;box-shadow:-10px 0 40px rgba(0,0,0,.2)}
+  #det.on{display:block;animation:push .5s var(--spring)}
+  #det.out{display:block;animation:pop .32s var(--ease) forwards}
+  @keyframes push{from{transform:translateX(100%)}to{transform:none}}
+  @keyframes pop{to{transform:translateX(100%)}}
+  #det header{position:sticky;top:0}
+  #det main{padding-bottom:40px}
+  #det .top{gap:8px}
+
+
+  /* ---------- tablet poziomo (Galaxy Tab): lista po lewej, szczegóły po prawej; telefon bez zmian ---------- */
+  @media (min-width:1000px) and (orientation:landscape){
+    :root{--lw:min(44vw,560px)}
+    main,#hd .top{max-width:1000px}
+    main.kol{columns:2;column-gap:16px}
+    main.kol>*{break-inside:avoid}
+    main.kol>.lt,main.kol>.hero,main.kol>.tiles{column-span:all}
+    body.dw main,body.dw #hd .top{max-width:none;width:var(--lw);margin:0}
+    body.dw main.kol{columns:1}
+    body.dw #bnav{right:auto;width:calc(var(--lw) - 28px)}
+    #det{left:var(--lw);box-shadow:none;border-left:.5px solid var(--line)}
+    #det main,#det .top{max-width:860px}
+    .row.sel{background:var(--acc2);border-radius:14px}
+  }
+
+  /* wykresy i paski */
+  .bar{height:8px;background:var(--fill);border-radius:99px;overflow:hidden;margin-top:6px}
+  .bar>div{height:100%;border-radius:99px;transition:width .9s var(--spring)}
+  svg text{fill:var(--mute);font-size:11px;font-weight:600;font-family:var(--fr)}
+  .leg{display:flex;gap:14px;font-size:13px;color:var(--mute);margin-top:8px;flex-wrap:wrap}
+  .leg span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;background:var(--c)}
+  .empty{color:var(--mute);text-align:center;padding:36px 0;font-size:15px}
+  .sk{height:96px;border-radius:var(--r);margin-bottom:14px;background:linear-gradient(90deg,var(--fill) 0%,var(--card) 50%,var(--fill) 100%);background-size:200% 100%;animation:sh 1.2s infinite}
+  @keyframes sh{to{background-position:-200% 0}}
+
+  /* „Więcej” – kafle jak w Skrótach */
+  .more{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .more button{position:relative;overflow:hidden;border:0;border-radius:var(--r);padding:14px;min-height:118px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;gap:10px;color:#fff;
+       background:var(--g,var(--accg));box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 10px 24px var(--gs,rgba(10,132,255,.25))}
+  .more button::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.22),transparent 45%);pointer-events:none}
+  .more button:nth-child(1){--g:linear-gradient(150deg,#0a84ff,#5e5ce6);--gs:rgba(10,132,255,.3)}
+  .more button:nth-child(2){--g:linear-gradient(150deg,#ffb340,#ff6b00);--gs:rgba(255,120,0,.3)}
+  .more button:nth-child(3){--g:linear-gradient(150deg,#4cd964,#0fa37f);--gs:rgba(40,180,90,.3)}
+  .more button:nth-child(4){--g:linear-gradient(150deg,#8e8e93,#48484a);--gs:rgba(60,60,67,.3)}
+  .more button:nth-child(5){--g:linear-gradient(150deg,#bf5af2,#7d3fe0);--gs:rgba(150,80,230,.3)}
+  .more button:nth-child(6){--g:linear-gradient(150deg,#30c48d,#1a7f5a);--gs:rgba(30,150,100,.3)}
+  .more button .ch{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .more button .ch svg{width:19px;height:19px;stroke-width:2.2}
+  .more button b{font-size:17px;font-weight:600;display:block}
+  .more button span{font-size:13px;opacity:.85;margin-top:-8px}
+
+  /* nagłówek podstron */
+  .phead{display:flex;align-items:center;gap:12px;margin:2px 0 16px}
+  .phead b{font-size:30px;font-weight:700;letter-spacing:.3px;line-height:1.1;display:block}
+  .phead span{color:var(--mute);font-size:14px;display:block;font-weight:500;letter-spacing:-.1px}
+
+  /* KPI i pierścienie jak w Fitness */
+  .kpi{display:flex;gap:16px;flex-wrap:wrap;margin:4px 0 12px;align-items:center}
+  .kpi>div:not(.ring){flex:1 1 0;min-width:90px}
+  .kpi b{display:block;font:700 26px/1.15 var(--fr);letter-spacing:0}
+  .kpi span{color:var(--mute);font-size:13px}
+  .ring{position:relative;width:92px;height:92px;flex:0 0 auto}
+  .ring svg{width:92px;height:92px;transform:rotate(-90deg);overflow:visible}
+  .ring svg circle:last-child{filter:drop-shadow(0 0 6px currentColor);animation:ringin 1.4s var(--ease) both}
+  @keyframes ringin{from{stroke-dasharray:0 999}}
+  .ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 22px var(--fr)!important}
+  .big{font-size:34px!important;background:linear-gradient(135deg,#30d158,#00c7be);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .note{font-size:13px;color:var(--mute);border-top:.5px solid var(--line);margin-top:12px;padding-top:10px;line-height:1.4}
+
+  /* toast – „Dynamic Island” */
+  #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 10px);transform:translateX(-50%);background:#000;color:#fff;padding:12px 20px;border-radius:999px;font-size:15px;font-weight:600;
+         display:none;z-index:30;box-shadow:0 12px 34px rgba(0,0,0,.35);width:max-content;max-width:calc(100vw - 32px);text-align:center;letter-spacing:-.2px}
+  #toast.on{display:block;animation:island .6s var(--spring)}
+  @keyframes island{from{opacity:.4;clip-path:inset(0 35% round 999px);transform:translateX(-50%) scale(.6)}to{opacity:1;clip-path:inset(0 0 round 999px);transform:translateX(-50%)}}
+  @media (prefers-color-scheme:dark){#toast{box-shadow:0 0 0 .5px rgba(255,255,255,.18),0 12px 34px rgba(0,0,0,.6)}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+  /* ===== 
+  /* ===== RODZINA (23.11.2026): akcent fioletowy, ta sama budowa co Serwis myjni ===== */
+  :root{--acc:#6e4ff6;--acc2:rgba(110,79,246,.12);--accg:linear-gradient(135deg,#7b61ff 0%,#9b5cf6 55%,#c94cf0 100%);
+    --b1:rgba(123,97,255,.26);--b2:rgba(236,72,153,.14);--b3:rgba(48,209,88,.1)}
+  @media (prefers-color-scheme:dark){:root:not([data-t=jasny]){--acc:#a08bff;--acc2:rgba(160,139,255,.2);--b1:rgba(123,97,255,.3);--b2:rgba(236,72,153,.16);--b3:rgba(48,209,88,.08)}}
+  .logo{box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 4px 14px rgba(110,79,246,.35)}
+  .lt small{text-transform:none;font-size:15px}
+  .lt small::first-letter{text-transform:uppercase}
+  .card h3{justify-content:flex-start}
+  .card h3 .mute{font-weight:500}
+  .card h3.r,.kr{color:var(--red)}
+  .card h3 .btn2.mal{margin-left:auto}
+  .btn2.mal{min-height:28px;padding:0 12px;font-size:13px}
+  .ib.mal{width:32px;height:32px;box-shadow:none;background:transparent;color:var(--mute)}
+  .btn.szer,.btn2.szer{width:100%;justify-content:center;margin-bottom:14px}
+  .btn2.szer{min-height:42px}
+  .btn.czerw{background:var(--red);box-shadow:0 6px 18px rgba(255,59,48,.3)}
+  .btn.okr{width:46px;min-width:46px;padding:0;flex:0 0 auto}
+  .btn.jade{width:100%;min-height:64px;font-size:21px;font-weight:700;background:var(--accg);box-shadow:0 10px 26px rgba(110,79,246,.35)}
+  .btn.jade svg{width:26px;height:26px}
+  .szybko{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+  .szybko input.as-in{margin:0;flex:1;border-radius:999px;height:46px;background:var(--card);box-shadow:inset 0 0 0 .5px var(--line),var(--sh)}
+  .szybko.mal input.as-in{height:40px;background:var(--fill);box-shadow:none}
+  .szybko.mal .btn.okr{width:40px;min-width:40px;min-height:40px}
+  input.as-in,select.as-in,textarea.as-in{width:100%;font:inherit;font-size:17px;color:var(--ink);background:var(--fill);border:0;border-radius:14px;padding:11px 14px;outline:none;color-scheme:light dark}
+  #ark label{display:block;font-size:13px;color:var(--mute);margin:14px 2px 6px;font-weight:600}
+  #ark label b{color:var(--ink)}
+  #ark textarea.as-in,#ark input.as-in,#ark select.as-in{margin:0}
+  #ark textarea.as-in{min-height:0;font-size:18px;font-weight:600}
+  #ark #edN{font-size:16px;font-weight:400}
+  #ark .ar{max-height:calc(92vh - env(safe-area-inset-top));overflow:auto;padding-bottom:20px}
+  #ark .ar.stoi{animation:none}
+  #ark .ab{margin-top:18px}
+  .arkh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .dwa{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:0;background:var(--acc2);color:var(--acc);border-radius:999px;min-height:34px;padding:0 14px;font-size:14px;font-weight:600}
+  .chip.on{background:var(--acc);color:#fff}
+  .edd.on{background:var(--acc);color:#fff}
+  .seg button .licz{font-style:normal;font-size:11px;background:var(--acc);color:#fff;border-radius:999px;padding:0 6px;margin-left:2px;line-height:17px}
+  .seg button svg{width:15px;height:15px}
+  /* kółko „сделано” (lewa strona, jak w Any.do) */
+  .okr-chk{width:28px;height:28px;flex:0 0 auto;border-radius:50%;border:2px solid color-mix(in srgb,var(--acc) 55%,var(--mute));background:transparent;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;color:transparent;align-self:flex-start;margin-top:1px}
+  .okr-chk svg{width:16px;height:16px;stroke-width:3}
+  .done .okr-chk{background:var(--acc);border-color:var(--acc);color:#fff}
+  .row.poz{align-items:flex-start}
+  .row.poz .g{cursor:pointer}
+  .row.poz.mala{padding:7px 0;min-height:0}
+  .done .t{text-decoration:line-through;opacity:.5}
+  .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 0}
+  .meta svg{width:13px;height:13px;margin-right:3px;vertical-align:-2px}
+  .kropka{display:inline-block;width:3px;height:3px;border-radius:50%;background:var(--mute);margin:0 7px;opacity:.6}
+  .card.zr .t{opacity:.6}
+  .card.pilna{box-shadow:inset 0 0 0 2px var(--acc),var(--sh)}
+  .godz{font-weight:700;min-width:50px;font-variant-numeric:tabular-nums}
+  .dzien{font-size:14px;font-weight:700;color:var(--acc);margin:16px 4px 8px;text-transform:uppercase;letter-spacing:.2px}
+  .empty.mala{padding:12px 0}
+  .pw.nowe .t{font-weight:700}
+  .seria{display:flex;align-items:center;gap:14px}
+  .seria>b{font:700 40px/1 var(--fr);color:var(--acc)}
+  .bar{height:8px;border-radius:4px;background:var(--fill);overflow:hidden;margin-top:8px}
+  .bar>div{height:100%;background:var(--accg);border-radius:4px}
+  .more button:nth-child(1){--g:linear-gradient(150deg,#7b61ff,#5b3fd9);--gs:rgba(110,79,246,.3)}
+  .more button:nth-child(2){--g:linear-gradient(150deg,#ff8a5c,#f0446b);--gs:rgba(240,68,107,.3)}
+  .more button:nth-child(3){--g:linear-gradient(150deg,#4cd9a0,#13a07a);--gs:rgba(20,160,120,.3)}
+  .more button:nth-child(4){--g:linear-gradient(150deg,#8e8e93,#48484a);--gs:rgba(60,60,67,.3)}
+  #ark label.edd{display:inline-flex;margin:0;font-size:14px;color:var(--ink);font-weight:600}
+  #ark label.edd.on{color:#fff}
+  .chips{align-items:center}
+
 </style>
 </head>
 <body>
-<header><h1 id="tyt">Семья</h1><button class="ib" id="pushb" onclick="pushWlacz()" title="Уведомления" style="display:none">🔔</button><button class="ib" onclick="load(true)" title="Обновить">↻</button></header>
-<div id="szb" class="szybko" style="display:none"><input id="szt" placeholder="Скажи или напиши: «стоматолог Насти в четверг в 16»" onkeydown="if(event.key==='Enter')szybko()"><button onclick="szybko()">＋</button></div>
-<main id="app"><div class="empty">Загружаю…</div></main>
-<nav id="nav"></nav>
-<div id="ark"></div>
+<header id="hd">
+  <div class="top">
+    <div class="logo" id="logo"></div>
+    <h1 id="ct">Семья</h1>
+    <button class="ib" onclick="load(true)" aria-label="Обновить" id="odsw"></button>
+  </div>
+</header>
+<main id="main"><div class="empty">Загружаю…</div></main>
+<nav id="bnav"><div class="in" id="nav"></div></nav>
 <div id="toast"></div>
-<script src="config.js"></script>
+<div id="ark"></div>
 <script>
+/* Rodzina (aplikacja „Семья”) v0.2 — 23.11.2026
+ * Wygląd i elementy sterujące jak w Serwis myjni (iOS: arkusze od dołu, segmenty, pasek kart, toast), akcent fioletowy.
+ * Interfejs po rosyjsku; nazwy w kodzie po polsku. Jedna aplikacja dla wielu rodzin: adres serwera (u) i klucz osoby (k) przychodzą w linku.
+ * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
+ * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
+ */
+const WERSJA_APLIKACJI = '0.2.0';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -101,110 +377,223 @@ const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''
   if (location.hash) history.replaceState(null, '', location.pathname);
 })();
 const K = LS.get('k'), API = LS.get('u');
-let D = null, TAB = LS.get('tab') || 'dzis', JADE_MIN = 0;
+let D = null, TAB = LS.get('tab') || 'dzis', LISTA = LS.get('lista') || 'zakupy', PODSTR = '', JADE_MIN = 0, ANIM = true;
+const ZROBIONE_OTWARTE = {};
 
+/* ---------- ikony (SVG, bez emoji — jak w Serwis myjni) ---------- */
+const IC = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  lista: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  check: '<path d="M5 12l5 5 9-11"/>',
+  alert: '<path d="M12 3 2 20h20z"/><path d="M12 9v5M12 17h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  cart: '<path d="M3 4h2l2.4 11h11l2-8H6.2"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/>',
+  car: '<path d="M5 17h14M6 17v2M18 17v2M4 13l2-6h12l2 6v4H4z"/><circle cx="8" cy="14.5" r=".8"/><circle cx="16" cy="14.5" r=".8"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  update: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
+  flame: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-4-1-6 1-9z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
+  car2: '<path d="M3 13l2-6h14l2 6v5H3z"/><path d="M3 13h18"/>',
+  sub: '<path d="M6 4v10a3 3 0 0 0 3 3h9"/><path d="M15 14l3 3-3 3"/>',
+  note: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>'
+};
+const I = (n, s) => '<svg class="i' + (s ? ' s' : '') + '" viewBox="0 0 24 24">' + (IC[n] || IC.box) + '</svg>';
+const TABS = [['dzis', 'home', 'Сегодня'], ['kal', 'cal', 'Календарь'], ['listy', 'lista', 'Списки'], ['wiecej', 'grid', 'Ещё']];
+
+/* ---------- pomocnicze ---------- */
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const jsq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2600); }
+const jsq = s => esc(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+const DNI = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], MIES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const dt = s => new Date(String(s).slice(0, 10) + 'T12:00');
+const isoD = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const dzis = () => (D && D.dzis) || isoD(new Date());
+const plusDni = (iso, n) => { const d = dt(iso); d.setDate(d.getDate() + n); return isoD(d); };
+const roznica = iso => Math.round((dt(iso) - dt(dzis())) / 864e5);
+function dzienTekst(s) {
+  const d = dt(s), r = roznica(s), base = DNI[d.getDay()] + ', ' + d.getDate() + ' ' + MIES[d.getMonth()];
+  return r === 0 ? 'Сегодня · ' + base : r === 1 ? 'Завтра · ' + base : base;
+}
+function terminKrotko(s) {
+  const r = roznica(s), d = dt(s);
+  if (r === 0) return 'сегодня'; if (r === 1) return 'завтра'; if (r === -1) return 'вчера';
+  return DNI[d.getDay()] + ', ' + d.getDate() + ' ' + MIES[d.getMonth()];
+}
+const imie = id => { const o = ((D && D.ludzie) || []).find(x => x.id === id); return o ? o.imie : id; };
+const ktoTekst = kto => kto === 'wszyscy' ? 'все' : String(kto).split(',').map(imie).join(', ');
+const nowyId = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+const nazwaListy = id => id === 'moje' ? 'Мои' : ((D.listy || []).find(l => l.id === id) || { nazwa: id }).nazwa;
+const czyZakupy = id => !!((D.listy || []).find(l => l.id === id) || {}).zakupy;
+const ikonaListy = id => id === 'moje' ? 'user' : (((D.listy || []).find(l => l.id === id) || {}).ikona || 'box');
+let TT = 0;
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); clearTimeout(TT); TT = setTimeout(() => e.classList.remove('on'), 2600); }
+function toastAkcja(t, nazwa, fn) {
+  const e = document.getElementById('toast'); e.textContent = t + ' '; const b = document.createElement('button'); b.textContent = nazwa;
+  b.onclick = () => { e.classList.remove('on'); clearTimeout(TT); fn(); }; e.appendChild(b); e.classList.remove('on'); void e.offsetWidth; e.classList.add('on'); clearTimeout(TT); TT = setTimeout(() => e.classList.remove('on'), 5000);
+}
+
+/* ---------- serwer ---------- */
 function api(akcja, par) {
   const q = new URLSearchParams(Object.assign({ api: akcja, k: K }, par || {}));
   return fetch(API + '?' + q.toString(), { redirect: 'follow' }).then(r => r.json()).then(j => { if (!j.ok) throw new Error(j.blad || 'ошибка сервера'); return j.wynik; });
 }
-// действие → новый стан → перерисовка
-function akcja(nazwa, par, ok) {
-  document.body.classList.add('wait');
-  return api(nazwa, par).then(w => { if (w && w.ja) { D = w; render(); } if (ok) toast(ok); return w; })
-    .catch(e => toast(e.message)).finally(() => document.body.classList.remove('wait'));
+const zapiszCache = () => { try { LS.set('cacheD', JSON.stringify(D)); } catch (e) {} };
+
+// kolejka zmian: ekran zmienia się od razu (lokalnie), serwer dostaje zmiany po kolei; stan z serwera przyjmujemy, gdy kolejka pusta
+const KOLEJKA = [];
+let KOLEJKA_TRWA = false;
+function zmiana(akcja, par, lokalnie, ok) {
+  if (lokalnie) { try { lokalnie(D); } catch (e) { console.error(e); } zapiszCache(); render(); }
+  KOLEJKA.push({ akcja, par, ok });
+  kolejka();
+}
+function kolejka() {
+  if (KOLEJKA_TRWA || !KOLEJKA.length) return;
+  KOLEJKA_TRWA = true; ikonaOdsw(true);
+  const z = KOLEJKA[0];
+  api(z.akcja, z.par).then(w => {
+    KOLEJKA.shift();
+    if (z.ok) toast(z.ok);
+    if (!KOLEJKA.length && w && w.ja) przyjmij(w);
+  }).catch(e => {
+    KOLEJKA.length = 0;
+    toast(e.message === 'Failed to fetch' ? 'Нет связи — изменение не сохранилось' : e.message);
+    load();
+  }).finally(() => { KOLEJKA_TRWA = false; ikonaOdsw(false); kolejka(); });
+}
+function ikonaOdsw(t) { const b = document.getElementById('odsw'); if (b) b.classList.toggle('spin', !!t); }
+function przyjmij(w) {
+  const bylo = JSON.stringify(D);
+  D = w; zapiszCache();
+  if (bylo !== JSON.stringify(D)) { if (!document.getElementById('ark').classList.contains('on')) render(); else odswiezArkusz(); }
 }
 function load(reczne) {
-  if (!K || !API) { document.getElementById('app').innerHTML = '<div class="card"><div class="t">Открой приложение по своей личной ссылке</div><div class="mute">Ссылку даёт Вася. После первого открытия она запоминается.</div></div>'; return; }
-  return api('start').then(w => { D = w; render(); if (reczne) toast('Обновлено'); }).catch(e => { if (!D) document.getElementById('app').innerHTML = '<div class="card"><div class="t">Нет связи с сервером</div><div class="mute">' + esc(e.message) + '</div></div>'; else if (reczne) toast(e.message); });
+  if (!K || !API) { document.getElementById('main').innerHTML = '<div class="lt"><h1>Семья</h1></div><div class="card"><h3>' + I('alert', 1) + 'Нет доступа</h3>Открой приложение по своей личной ссылке. Потом — всегда с иконки.</div>'; return; }
+  if (!D) { try { const c = JSON.parse(LS.get('cacheD') || 'null'); if (c && c.ja) { D = c; render(); } } catch (e) {} }
+  if (KOLEJKA.length) return;
+  ikonaOdsw(true);
+  api('start').then(w => { if (!KOLEJKA.length) przyjmij(w); if (reczne) toast('Обновлено'); })
+    .catch(e => { if (!D) document.getElementById('main').innerHTML = '<div class="card"><h3>' + I('alert', 1) + 'Нет связи с сервером</h3><div class="mute">' + esc(e.message) + '</div></div>'; else if (reczne) toast('Не удалось обновить'); })
+    .finally(() => ikonaOdsw(KOLEJKA_TRWA));
 }
 
-// ---------- помощники
-const DNI = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], MIES = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-const dt = s => new Date(String(s).slice(0, 10) + 'T12:00');
-function dzienTekst(s) {
-  const d = dt(s), dz = dt(D.dzis), r = Math.round((d - dz) / 864e5);
-  const base = DNI[d.getDay()] + ', ' + d.getDate() + ' ' + MIES[d.getMonth()];
-  return r === 0 ? 'Сегодня · ' + base : r === 1 ? 'Завтра · ' + base : base;
+/* ---------- nawigacja ---------- */
+function nav() {
+  const n = document.getElementById('nav');
+  if (!n.children.length) n.innerHTML = '<i class="lens"></i>' + TABS.map(([id, ic, t]) =>
+    '<button data-t="' + id + '" onclick="go(\'' + id + '\')">' + I(ic) + '<span>' + t + '</span></button>').join('');
+  n.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+  soczewka();
 }
-const imie = id => { const o = (D.ludzie || []).find(x => x.id === id); return o ? o.imie : id; };
-function ktoTekst(kto) { return kto === 'wszyscy' ? 'все' : String(kto).split(',').map(imie).join(', '); }
-const mojeW = w => w.kto === 'wszyscy' || String(w.kto).split(',').indexOf(D.ja.id) >= 0;
-function arkZamknij() { document.getElementById('ark').classList.remove('on'); }
-function ark(html) { const a = document.getElementById('ark'); a.innerHTML = '<div class="tlo" onclick="arkZamknij()"></div><div class="ar">' + html + '</div>'; a.classList.add('on'); }
+function soczewka() {
+  const n = document.getElementById('nav'), b = n.querySelector('button.on'), l = n.querySelector('.lens');
+  if (!b || !l) return;
+  l.style.width = b.offsetWidth + 'px'; l.style.transform = 'translateX(' + b.offsetLeft + 'px)';
+}
+window.addEventListener('resize', soczewka);
+function go(t) { TAB = t; PODSTR = ''; LS.set('tab', t); ANIM = true; render(); window.scrollTo(0, 0); }
+window.addEventListener('scroll', () => document.getElementById('hd').classList.toggle('sc', window.scrollY > 40), { passive: true });
 
-// ---------- рендер
-const TABS = [['dzis', '🏠', 'Сегодня'], ['kal', '📅', 'Календарь'], ['zak', '🛒', 'Покупки'], ['zad', '✅', 'Задачи']];
 function render() {
+  nav();
   if (!D) return;
-  document.getElementById('tyt').textContent = TAB === 'dzis' ? 'Привет, ' + D.ja.imie : TABS.find(t => t[0] === TAB)[2];
-  document.getElementById('szb').style.display = D.szybko ? 'flex' : 'none';
-  document.getElementById('pushb').style.display = window.FB && !D.ja.push && 'Notification' in window ? '' : 'none';
-  const nowe = D.powiadomienia.filter(p => p.status === 'nowe').length, zakN = D.zakupy.filter(z => !z.kupione).length;
-  const mojeZad = D.zadania.filter(z => z.status === 'nowe' && z.dla === D.ja.id).length;
-  const licz = { dzis: nowe, zak: zakN, zad: mojeZad };
-  document.getElementById('nav').innerHTML = TABS.map(t => '<button class="' + (TAB === t[0] ? 'on' : '') + '" onclick="tab(\'' + t[0] + '\')"><span>' + t[1] + '</span>' + t[2] +
-    (licz[t[0]] ? '<em class="licz">' + licz[t[0]] + '</em>' : '') + '</button>').join('');
-  document.getElementById('app').innerHTML = ({ dzis: rDzis, kal: rKal, zak: rZak, zad: rZad })[TAB]();
+  const m = document.getElementById('main');
+  const tytul = TAB === 'dzis' ? 'Привет, ' + D.ja.imie : (TABS.find(t => t[0] === TAB) || [, , ''])[2];
+  document.getElementById('ct').textContent = PODSTR ? '' : tytul;
+  const pod = TAB === 'dzis' ? new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }) : (D.rodzina && D.rodzina.nazwa) || 'Семья';
+  const lt = PODSTR ? '' : '<div class="lt"><small>' + esc(pod) + '</small><h1>' + esc(tytul) + '</h1></div>';
+  m.classList.remove('anim');
+  m.innerHTML = lt + ({ dzis: wDzis, kal: wKal, listy: wListy, wiecej: wWiecej })[TAB]();
+  if (ANIM) { void m.offsetWidth; m.classList.add('anim'); }
+  ANIM = false;
 }
-function tab(t) { TAB = t; LS.set('tab', t); render(); scrollTo(0, 0); }
 
-function rDzis() {
+/* ---------- Сегодня ---------- */
+function wDzis() {
   let h = '';
+  if (D.szybko) h += '<div class="szybko"><input id="szt" class="as-in" placeholder="Скажи или напиши: «стоматолог Насти в четверг в 16»" onkeydown="if(event.key===\'Enter\')szybko()"><button class="btn okr" onclick="szybko()" aria-label="Добавить">' + I('plus') + '</button></div>';
   if (D.jade) {
-    h += '<div class="card"><button class="jade" onclick="jade()">🚗 Еду домой</button>' +
-      '<div class="chips">' + [0, 20, 40, 60].map(m => '<button class="chip' + (JADE_MIN === m ? ' on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
+    h += '<div class="card"><button class="btn jade" onclick="jade()">' + I('car2') + ' Еду домой</button>' +
+      '<div class="seg" style="margin:12px 0 0">' + [0, 20, 40, 60].map(m => '<button class="' + (JADE_MIN === m ? 'on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
   }
-  const kuch = D.zadania.filter(z => z.typ === 'kuchnia' && z.status === 'nowe');
+  const kuch = (D.zadania || []).filter(z => z.typ === 'kuchnia' && z.status === 'nowe');
   kuch.filter(z => z.dla === D.ja.id).forEach(z => {
-    h += '<div class="card" style="border:2px solid var(--acc)"><h3>🍳 Срочно</h3><div class="row"><div class="g"><div class="t">' + esc(z.tytul) + '</div></div></div>' +
-      '<button class="btn" style="width:100%;margin-top:6px" onclick="akcja(\'zadanieZrobione\',{id:\'' + jsq(z.id) + '\'},\'Молодец! Мама получит уведомление\')">Готово ✓</button></div>';
+    h += '<div class="card pilna"><h3>' + I('alert', 1) + 'Срочно</h3><div class="t">' + esc(z.tytul) + '</div>' +
+      '<button class="btn" style="width:100%;margin-top:12px" onclick="kuchniaGotowe(\'' + jsq(z.id) + '\')">' + I('check', 1) + ' Готово</button></div>';
   });
-  kuch.filter(z => z.dla !== D.ja.id).forEach(z => { h += '<div class="card"><div class="mute">🍳 ' + esc(imie(z.dla)) + ' получила задание по кухне, ещё не готово</div></div>'; });
-  if (D.ja.rola === 'dziecko' || D.seria.dni > 0) {
-    const s = D.seria, c1 = D.serieCel[0], c2 = D.serieCel[1], cel = s.dni < c1 ? c1 : c2;
-    const nagroda = s.dni < c1 ? 'выбор блюда на выходные' : s.dni < c2 ? 'совместный шопинг' : 'месяц без пропусков — шопинг заработан! 🎉';
-    h += '<div class="card"><h3>' + (D.ja.rola === 'dziecko' ? 'Твоя серия' : 'Серия ' + esc(imie('nastya'))) + '</h3><div class="seria"><b>🔥 ' + s.dni + '</b><div class="g"><div class="t">' +
-      (s.dni >= c2 ? nagroda : 'до «' + nagroda + '» — ' + (cel - s.dni) + ' дн.') + '</div><div class="bar"><i style="width:' + Math.min(100, s.dni / cel * 100) + '%"></i></div></div></div></div>';
-  }
-  const dz = D.wydarzenia.filter(w => w.start.slice(0, 10) === D.dzis);
-  h += '<div class="card"><h3>Сегодня</h3>' + (dz.length ? dz.map(wiersWyd).join('') : '<div class="empty">Ничего не запланировано</div>') + '</div>';
-  const jutro = D.wydarzenia.filter(w => w.start.slice(0, 10) > D.dzis).slice(0, 3);
-  if (jutro.length) h += '<div class="card"><h3>Скоро</h3>' + jutro.map(w => wiersWyd(w, 1)).join('') + '</div>';
-  const zad = D.zadania.filter(z => z.status === 'nowe' && z.dla === D.ja.id && z.typ !== 'kuchnia');
-  if (zad.length) h += '<div class="card"><h3>Мои задачи</h3>' + zad.map(wiersZad).join('') + '</div>';
+  kuch.filter(z => z.dla !== D.ja.id).forEach(z => { h += '<div class="card"><div class="mute">' + I('clock', 1) + ' ' + esc(imie(z.dla)) + ': задание по кухне ещё не готово</div></div>'; });
+  if (D.seriaKto && (D.ja.id === D.seriaKto || D.ja.rola === 'rodzic') && (D.ja.id === D.seriaKto || D.seria.dni > 0)) h += kartaSerii();
+  const dz = D.wydarzenia.filter(w => w.start.slice(0, 10) === dzis());
+  h += '<div class="card"><h3>' + I('cal', 1) + 'Сегодня</h3>' + (dz.length ? dz.map(w => wierszWyd(w)).join('') : '<div class="empty mala">Ничего не запланировано</div>') + '</div>';
+  const pozniej = D.wydarzenia.filter(w => w.start.slice(0, 10) > dzis()).slice(0, 3);
+  if (pozniej.length) h += '<div class="card"><h3>' + I('clock', 1) + 'Скоро</h3>' + pozniej.map(w => wierszWyd(w, 1)).join('') + '</div>';
+  const moje = mojeDoZrobienia().filter(o => o.termin && o.termin <= dzis());
+  if (moje.length) h += '<div class="card"><h3>' + I('check', 1) + 'Мои дела на сегодня</h3>' + moje.map(o => wierszPoz(o, 1)).join('') + '</div>';
   const pw = D.powiadomienia.slice(0, 12);
-  h += '<div class="card"><h3>Сообщения' + (pw.some(p => p.status === 'nowe') ? ' <button class="btn2" style="float:right;font-size:13px;padding:4px 10px;text-transform:none" onclick="akcja(\'pwCzytaj\',{ids:\'wszystkie\'})">прочитал</button>' : '') + '</h3>' +
-    (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + esc(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty">Пока тихо</div>') + '</div>';
+  h += '<div class="card"><h3>' + I('bell', 1) + 'Сообщения' + (pw.some(p => p.status === 'nowe') ? '<button class="btn2 mal" onclick="przeczytane()">прочитал</button>' : '') + '</h3>' +
+    (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + esc(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty mala">Пока тихо</div>') + '</div>';
   return h;
 }
-
-function wiersWyd(w, zData) {
-  return '<div class="row"><div style="font-weight:600;min-width:52px">' + esc(w.start.slice(11, 16)) + '</div><div class="g"><div class="t">' + esc(w.tytul) + '</div><div class="mute">' +
-    (zData ? esc(dzienTekst(w.start)) + ' · ' : '') + esc(ktoTekst(w.kto)) + (w.miejsce ? ' · ' + esc(w.miejsce) : '') + (Number(w.przyp) ? ' · ⏰' : '') + '</div></div>' +
-    '<button class="x" onclick="usunWyd(\'' + jsq(w.id) + '\')">×</button></div>';
+function mojeDoZrobienia() {
+  return (D.pozycje || []).filter(o => !o.rodzic && o.status !== 'zrobione' && (o.dla === D.ja.id || (o.lista === 'moje' && !o.dla && o.od === D.ja.id)))
+    .sort((a, b) => (a.termin || '9') < (b.termin || '9') ? -1 : 1);
 }
-function rKal() {
-  let h = '<button class="btn" style="width:100%;margin-bottom:12px" onclick="formWyd()">＋ Событие</button>';
+function kartaSerii() {
+  const s = D.seria, c1 = D.serieCel[0], c2 = D.serieCel[1], cel = s.dni < c1 ? c1 : c2, moja = D.ja.id === D.seriaKto;
+  const nagroda = s.dni < c1 ? 'выбор блюда на выходные' : s.dni < c2 ? 'совместный шопинг' : 'месяц без пропусков — шопинг заработан!';
+  return '<div class="card"><h3>' + I('flame', 1) + (moja ? 'Твоя серия' : 'Серия: ' + esc(imie(D.seriaKto))) + '</h3><div class="seria"><b>' + s.dni + '</b><div class="g"><div class="t">' +
+    (s.dni >= c2 ? nagroda : 'до «' + nagroda + '» — ' + (cel - s.dni) + ' дн.') + '</div><div class="bar"><div style="width:' + Math.min(100, s.dni / cel * 100) + '%"></div></div></div></div></div>';
+}
+function kuchniaGotowe(id) {
+  zmiana('zadanieZrobione', { id: id }, d => { const z = d.zadania.find(x => x.id === id); if (z) z.status = 'zrobione'; }, 'Молодец! Уведомление ушло');
+}
+function przeczytane() { zmiana('pwCzytaj', { ids: 'wszystkie' }, d => d.powiadomienia.forEach(p => p.status = 'przeczytane')); }
+function jade() {
+  const m = JADE_MIN;
+  zmiana('jadeDomu', { min: m }, null, 'Готово, дома знают');
+}
+
+/* ---------- Календарь ---------- */
+function wierszWyd(w, zData) {
+  return '<div class="row"><div class="godz">' + esc(w.start.slice(11, 16)) + '</div><div class="g"><div class="t">' + esc(w.tytul) + '</div><div class="mute">' +
+    (zData ? esc(dzienTekst(w.start)) + ' · ' : '') + esc(ktoTekst(w.kto)) + (w.miejsce ? ' · ' + esc(w.miejsce) : '') + (Number(w.przyp) ? ' · ' + I('clock', 1) : '') + '</div></div>' +
+    '<button class="ib mal" onclick="menuWyd(\'' + jsq(w.id) + '\')" aria-label="Ещё">' + I('more', 1) + '</button></div>';
+}
+function wKal() {
+  let h = '<button class="btn szer" onclick="formWyd()">' + I('plus', 1) + ' Событие</button>';
   if (!D.wydarzenia.length) return h + '<div class="card"><div class="empty">В календаре пусто. Добавь первое событие.</div></div>';
   let dz = '';
   D.wydarzenia.forEach(w => {
     const d = w.start.slice(0, 10);
     if (d !== dz) { if (dz) h += '</div>'; dz = d; h += '<div class="dzien">' + esc(dzienTekst(d)) + '</div><div class="card">'; }
-    h += wiersWyd(w);
+    h += wierszWyd(w);
   });
   return h + '</div>';
 }
-function usunWyd(id) { if (confirm('Удалить событие?')) akcja('wydarzenieUsun', { id: id }, 'Удалено'); }
-function chipsKto(id, zazn) {
-  return '<div class="chips" id="' + id + '">' + [['wszyscy', 'Все']].concat(D.ludzie.map(o => [o.id, o.imie])).map(o =>
-    '<button type="button" class="chip' + (zazn.indexOf(o[0]) >= 0 ? ' on' : '') + '" data-v="' + o[0] + '" onclick="chipKlik(this)">' + esc(o[1]) + '</button>').join('') + '</div>';
+function menuWyd(id) {
+  const w = D.wydarzenia.find(x => x.id === id); if (!w) return;
+  ark('<h4>' + esc(w.tytul) + '</h4><div class="mute" style="margin-bottom:14px">' + esc(dzienTekst(w.start)) + ', ' + esc(w.start.slice(11, 16)) + '</div>' +
+    '<div class="ab"><button class="btn czerw" onclick="usunWyd(\'' + jsq(id) + '\')">' + I('trash', 1) + ' Удалить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
+}
+function usunWyd(id) { arkZamknij(); zmiana('wydarzenieUsun', { id: id }, d => d.wydarzenia = d.wydarzenia.filter(x => x.id !== id), 'Удалено'); }
+function chipsy(id, opcje, wybrane, jeden) {
+  return '<div class="chips" id="' + id + '"' + (jeden ? ' data-jeden="1"' : '') + '>' + opcje.map(o =>
+    '<button type="button" class="chip' + (wybrane.indexOf(o[0]) >= 0 ? ' on' : '') + '" data-v="' + esc(o[0]) + '" onclick="chipKlik(this)">' + esc(o[1]) + '</button>').join('') + '</div>';
 }
 function chipKlik(b) {
   const box = b.parentNode, all = b.dataset.v === 'wszyscy';
-  if (box.dataset.jeden) { box.querySelectorAll('.chip').forEach(c => c.classList.remove('on')); b.classList.add('on'); return; }
+  if (box.dataset.jeden) { box.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === b)); if (box.onzmiana) box.onzmiana(b.dataset.v); return; }
   box.querySelectorAll('.chip').forEach(c => { if (all ? c !== b : c.dataset.v === 'wszyscy') c.classList.remove('on'); });
   b.classList.toggle('on');
 }
@@ -212,100 +601,312 @@ const chipsWartosc = id => { const v = [...document.querySelectorAll('#' + id + 
 function formWyd(w) {
   w = w || {};
   const s = w.start || '', przyp = w.przyp == null ? 60 : Number(w.przyp);
-  ark('<h4>Новое событие</h4><label>Что</label><input id="wT" value="' + esc(w.tytul || '') + '" placeholder="Стоматолог, экзамен, поездка…">' +
-    '<div style="display:flex;gap:8px"><div class="g"><label>Дата</label><input id="wD" type="date" value="' + esc(s.slice(0, 10) || D.dzis) + '"></div>' +
-    '<div class="g"><label>Время</label><input id="wG" type="time" value="' + esc(s.slice(11, 16) || '') + '"></div></div>' +
-    '<label>Для кого</label>' + chipsKto('wK', String(w.kto || 'wszyscy').split(',')) +
-    '<label>Где</label><input id="wM" value="' + esc(w.miejsce || '') + '" placeholder="необязательно">' +
-    '<label>Напомнить</label><select id="wP">' + [[0, 'не напоминать'], [15, 'за 15 минут'], [60, 'за час'], [180, 'за 3 часа'], [1440, 'за день']].map(o =>
-      '<option value="' + o[0] + '"' + (o[0] === przyp ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
-    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Отмена</button><button class="btn" onclick="zapiszWyd()">Сохранить</button></div>');
+  ark('<h4>Новое событие</h4><label>Что</label><input id="wT" class="as-in" value="' + esc(w.tytul || '') + '" placeholder="Стоматолог, экзамен, поездка…">' +
+    '<div class="dwa"><div><label>Дата</label><input id="wD" class="as-in" type="date" value="' + esc(s.slice(0, 10) || dzis()) + '"></div>' +
+    '<div><label>Время</label><input id="wG" class="as-in" type="time" value="' + esc(s.slice(11, 16) || '') + '"></div></div>' +
+    '<label>Для кого</label>' + chipsy('wK', [['wszyscy', 'Все']].concat(D.ludzie.map(o => [o.id, o.imie])), String(w.kto || 'wszyscy').split(',')) +
+    '<label>Где</label><input id="wM" class="as-in" value="' + esc(w.miejsce || '') + '" placeholder="необязательно">' +
+    '<label>Напомнить</label>' + chipsy('wP', [['0', 'нет'], ['15', 'за 15 мин'], ['60', 'за час'], ['180', 'за 3 часа'], ['1440', 'за день']], [String(przyp)], true) +
+    '<div class="ab"><button class="btn" onclick="zapiszWyd()">' + I('check', 1) + ' Сохранить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
 }
 function zapiszWyd() {
   const t = document.getElementById('wT').value.trim(), d = document.getElementById('wD').value, g = document.getElementById('wG').value;
   if (!t || !d || !g) return toast('Нужно: что, дата и время');
-  akcja('wydarzenieDodaj', { tytul: t, start: d + 'T' + g, kto: chipsWartosc('wK'), miejsce: document.getElementById('wM').value.trim(), przyp: document.getElementById('wP').value }, 'Сохранено')
-    .then(w => { if (w && w.ja) arkZamknij(); });
+  const w = { id: nowyId(), tytul: t, start: d + 'T' + g, kto: chipsWartosc('wK'), miejsce: document.getElementById('wM').value.trim(), przyp: chipsWartosc('wP') };
+  if (w.przyp === 'wszyscy') w.przyp = '0';
+  arkZamknij();
+  zmiana('wydarzenieDodaj', w, d => { d.wydarzenia.push(Object.assign({ autor: d.ja.id }, w)); d.wydarzenia.sort((a, b) => a.start < b.start ? -1 : 1); }, 'Сохранено');
 }
 
-function rZak() {
-  const nie = D.zakupy.filter(z => !z.kupione), tak = D.zakupy.filter(z => z.kupione);
-  let h = '<div class="szybko"><input id="zN" placeholder="Молоко, хлеб, таблетки…" onkeydown="if(event.key===\'Enter\')dodajZak()"><button onclick="dodajZak()">＋</button></div>';
-  h += '<div class="card"><h3>Купить · ' + nie.length + '</h3>' + (nie.length ? nie.map(wiersZak).join('') : '<div class="empty">Всё куплено 👌</div>') + '</div>';
-  if (tak.length) h += '<div class="card"><h3>Куплено</h3>' + tak.map(wiersZak).join('') +
-    '<button class="btn2" style="width:100%;margin-top:8px" onclick="akcja(\'zakupyWyczysc\',{},\'Убрано\')">Убрать купленное</button></div>';
+/* ---------- Списки ---------- */
+function listyWszystkie() { return (D.listy || []).map(l => l.id).concat(['moje']); }
+function glowne(lista) { return (D.pozycje || []).filter(o => o.lista === lista && !o.rodzic); }
+function podzadania(id) { return (D.pozycje || []).filter(o => o.rodzic === id).sort((a, b) => a.kolejnosc - b.kolejnosc); }
+function wListy() {
+  if (!D.listy) return '<div class="card"><h3>' + I('update', 1) + 'Нужно обновление сервера</h3>Сервер ещё на старой версии. После установки обновления здесь появятся общие списки с подзадачами.</div>';
+  if (listyWszystkie().indexOf(LISTA) < 0) LISTA = listyWszystkie()[0];
+  let h = '<div class="seg">' + listyWszystkie().map(id => {
+    const n = glowne(id).filter(o => o.status !== 'zrobione').length;
+    return '<button class="' + (LISTA === id ? 'on' : '') + '" onclick="wybierzListe(\'' + jsq(id) + '\')">' + I(ikonaListy(id), 1) + esc(nazwaListy(id)) + (n ? ' <em class="licz">' + n + '</em>' : '') + '</button>';
+  }).join('') + '</div>';
+  const zak = czyZakupy(LISTA);
+  h += '<div class="szybko"><input id="nowa" class="as-in" placeholder="' + (zak ? 'Молоко, хлеб, корм… (через запятую)' : 'Новая задача в «' + esc(nazwaListy(LISTA)) + '»') + '" onkeydown="if(event.key===\'Enter\')dodajPoz()"><button class="btn okr" onclick="dodajPoz()" aria-label="Добавить">' + I('plus') + '</button></div>';
+  const wszystkie = glowne(LISTA), otwarte = wszystkie.filter(o => o.status !== 'zrobione'), zrobione = wszystkie.filter(o => o.status === 'zrobione');
+  if (!otwarte.length) h += '<div class="card"><div class="empty">' + (zak ? 'Всё куплено' : 'Здесь пусто') + '</div></div>';
+  else if (zak) {
+    (D.dzialy || [['inne', 'Другое']]).forEach(([k, nazwa]) => {
+      const w = otwarte.filter(o => (o.dzial || 'inne') === k);
+      if (w.length) h += '<div class="card"><h3>' + esc(nazwa) + ' <span class="mute">' + w.length + '</span></h3>' + w.map(o => wierszPoz(o)).join('') + '</div>';
+    });
+    const znane = (D.dzialy || []).map(d => d[0]), reszta = otwarte.filter(o => znane.indexOf(o.dzial || 'inne') < 0);
+    if (reszta.length) h += '<div class="card">' + reszta.map(o => wierszPoz(o)).join('') + '</div>';
+  } else {
+    const d0 = dzis(), d1 = plusDni(d0, 1);
+    const grupy = [['Просрочено', o => o.termin && o.termin < d0, 'r'], ['Сегодня', o => o.termin === d0], ['Завтра', o => o.termin === d1],
+      ['Позже', o => o.termin && o.termin > d1], ['Без срока', o => !o.termin]];
+    grupy.forEach(([nazwa, f, kl]) => {
+      const w = otwarte.filter(f).sort((a, b) => (a.termin || '') < (b.termin || '') ? -1 : a.termin === b.termin ? a.kolejnosc - b.kolejnosc : 1);
+      if (w.length) h += '<div class="card"><h3' + (kl ? ' class="' + kl + '"' : '') + '>' + nazwa + ' <span class="mute">' + w.length + '</span></h3>' + w.map(o => wierszPoz(o)).join('') + '</div>';
+    });
+  }
+  if (zrobione.length) {
+    const otw = ZROBIONE_OTWARTE[LISTA];
+    h += '<button class="btn2 szer" onclick="ZROBIONE_OTWARTE[LISTA]=!ZROBIONE_OTWARTE[LISTA];render()">' + I('check', 1) + (zak ? 'Куплено' : 'Сделано') + ' · ' + zrobione.length + (otw ? ' — свернуть' : '') + '</button>';
+    if (otw) h += '<div class="card zr">' + zrobione.map(o => wierszPoz(o)).join('') +
+      '<button class="btn2 szer" style="margin-top:10px" onclick="pytajWyczysc()">' + I('trash', 1) + 'Убрать ' + (zak ? 'купленное' : 'сделанное') + '</button></div>';
+  }
   return h;
 }
-function wiersZak(z) {
-  return '<div class="row' + (z.kupione ? ' done' : '') + '"><button class="chk" onclick="akcja(\'zakupKlik\',{id:\'' + jsq(z.id) + '\'})">' + (z.kupione ? '✓' : '') + '</button>' +
-    '<div class="g"><div class="t">' + esc(z.nazwa) + '</div><div class="mute">' + (z.kupione ? 'купил(а) ' + esc(imie(z.kupil)) : 'добавил(а) ' + esc(imie(z.dodal))) + '</div></div></div>';
+function wybierzListe(id) { LISTA = id; LS.set('lista', id); render(); }
+function wierszPoz(o, zLista) {
+  const zr = o.status === 'zrobione', pod = podzadania(o.id), gotowe = pod.filter(x => x.status === 'zrobione').length;
+  const po = o.termin && o.termin < dzis() && !zr;
+  const meta = [];
+  if (zLista) meta.push(I(ikonaListy(o.lista), 1) + esc(nazwaListy(o.lista)));
+  if (pod.length) meta.push(I('sub', 1) + gotowe + '/' + pod.length);
+  if (o.termin && !czyZakupy(o.lista)) meta.push('<span class="' + (po ? 'kr' : '') + '">' + esc(terminKrotko(o.termin)) + '</span>');
+  if (o.dla && o.dla !== D.ja.id) meta.push(I('user', 1) + esc(imie(o.dla)));
+  if (o.przyp) meta.push(I('clock', 1) + esc(o.przyp.slice(11, 16)));
+  if (o.notatka) meta.push(I('note', 1));
+  return '<div class="row poz' + (zr ? ' done' : '') + '"><button class="okr-chk" role="checkbox" aria-checked="' + zr + '" aria-label="Сделано" onclick="klik(\'' + jsq(o.id) + '\')">' + I('check', 1) + '</button>' +
+    '<div class="g" onclick="edytuj(\'' + jsq(o.id) + '\')"><div class="t">' + esc(o.tytul) + '</div>' + (meta.length ? '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div>' : '') + '</div></div>';
 }
-function dodajZak() { const e = document.getElementById('zN'), v = e.value.trim(); if (!v) return; akcja('zakupDodaj', { nazwa: v }).then(() => { const n = document.getElementById('zN'); if (n) n.focus(); }); }
+function klik(id) {
+  const o = (D.pozycje || []).find(x => x.id === id); if (!o) return;
+  const zr = o.status !== 'zrobione';
+  zmiana('pozKlik', { id: id, zrobione: zr ? '1' : '0' }, d => { const x = d.pozycje.find(y => y.id === id); if (x) x.status = zr ? 'zrobione' : 'nowe'; });
+  if (document.getElementById('ark').classList.contains('on')) odswiezArkusz();
+}
+function dodajPoz() {
+  const e = document.getElementById('nowa'), v = e.value.trim(); if (!v) return;
+  const lista = LISTA, zak = czyZakupy(lista), id = nowyId();
+  const tytuly = zak ? v.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : [v];
+  zmiana('pozDodaj', { lista: lista, tytul: v, id: id }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: i ? nowyId() : id, lista: lista, tytul: t, rodzic: '',
+    dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
+  setTimeout(() => { const n = document.getElementById('nowa'); if (n) n.focus(); }, 30);
+}
+function pytajWyczysc() {
+  const zak = czyZakupy(LISTA), n = glowne(LISTA).filter(o => o.status === 'zrobione').length;
+  ark('<h4>Убрать ' + (zak ? 'купленное' : 'сделанное') + '?</h4><div class="mute" style="margin-bottom:14px">' + n + ' шт. из «' + esc(nazwaListy(LISTA)) + '» исчезнут из списка.</div>' +
+    '<div class="ab"><button class="btn czerw" onclick="wyczysc()">' + I('trash', 1) + ' Убрать</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
+}
+function wyczysc() {
+  const lista = LISTA; arkZamknij();
+  zmiana('pozWyczysc', { lista: lista }, d => { const usun = d.pozycje.filter(o => o.lista === lista && !o.rodzic && o.status === 'zrobione').map(o => o.id);
+    d.pozycje = d.pozycje.filter(o => usun.indexOf(o.id) < 0 && usun.indexOf(o.rodzic) < 0); }, 'Убрано');
+}
 
-function rZad() {
-  const nowe = D.zadania.filter(z => z.status === 'nowe'), zr = D.zadania.filter(z => z.status === 'zrobione');
-  const moje = nowe.filter(z => z.dla === D.ja.id), inne = nowe.filter(z => z.dla !== D.ja.id);
-  let h = '<button class="btn" style="width:100%;margin-bottom:12px" onclick="formZad()">＋ Задача</button>';
-  h += '<div class="card"><h3>Мои</h3>' + (moje.length ? moje.map(wiersZad).join('') : '<div class="empty">Свободен(на) 🙂</div>') + '</div>';
-  if (inne.length) h += '<div class="card"><h3>У других</h3>' + inne.map(wiersZad).join('') + '</div>';
-  if (zr.length) h += '<div class="card"><h3>Сделано за сутки</h3>' + zr.map(wiersZad).join('') + '</div>';
+/* ---------- окно задачи: подзадачи, срок, кто, напоминание ---------- */
+let ED = null;
+function edytuj(id) {
+  const o = (D.pozycje || []).find(x => x.id === id); if (!o) return;
+  ED = { id: id, tytul: o.tytul, termin: o.termin || '', dla: o.dla || '', przyp: o.przyp || '', lista: o.lista, dzial: o.dzial || 'inne', notatka: o.notatka || '' };
+  rysujArkusz();
+}
+function odswiezArkusz() {
+  if (!ED) return;
+  const o = (D.pozycje || []).find(x => x.id === ED.id);
+  if (!o) { arkZamknij(); return; }
+  const l = document.getElementById('edPod'); if (l) l.innerHTML = listaPod(o);
+}
+function listaPod(o) {
+  const pod = podzadania(o.id);
+  return pod.map(p => '<div class="row poz mala' + (p.status === 'zrobione' ? ' done' : '') + '"><button class="okr-chk" role="checkbox" aria-checked="' + (p.status === 'zrobione') + '" onclick="klik(\'' + jsq(p.id) + '\')">' + I('check', 1) + '</button>' +
+    '<div class="g"><div class="t">' + esc(p.tytul) + '</div></div><button class="ib mal" onclick="usunPod(\'' + jsq(p.id) + '\')" aria-label="Удалить подзадачу">' + I('x', 1) + '</button></div>').join('');
+}
+function rysujArkusz() {
+  const o = (D.pozycje || []).find(x => x.id === ED.id); if (!o) return;
+  const zak = czyZakupy(ED.lista), d0 = dzis();
+  const terminy = [[d0, 'Сегодня'], [plusDni(d0, 1), 'Завтра'], [plusDni(d0, 7), '+7 дней'], ['', 'Без срока']];
+  const przyp = [['', 'Нет'], ['rano', 'В 9:00 в день срока'], ['wieczor', 'Накануне в 19:00']];
+  const przypWart = !ED.przyp ? '' : (ED.termin && ED.przyp === ED.termin + 'T09:00') ? 'rano' : (ED.termin && ED.przyp === plusDni(ED.termin, -1) + 'T19:00') ? 'wieczor' : 'inne';
+  const h = '<div class="arkh"><h4>' + (zak ? 'Покупка' : 'Задача') + '</h4><button class="ib" onclick="menuPoz()" aria-label="Ещё">' + I('more') + '</button></div>' +
+    '<textarea id="edT" class="as-in" rows="2">' + esc(ED.tytul) + '</textarea>' +
+    (zak ? '' : '<label>Подзадачи</label><div id="edPod">' + listaPod(o) + '</div>' +
+      '<div class="szybko mal"><input id="edNowa" class="as-in" placeholder="+ подзадача" onkeydown="if(event.key===\'Enter\')dodajPod()"><button class="btn okr" onclick="dodajPod()" aria-label="Добавить подзадачу">' + I('plus') + '</button></div>') +
+    (zak ? '' : '<label>Срок' + (ED.termin ? ': <b>' + esc(terminKrotko(ED.termin)) + '</b>' : '') + '</label><div class="chips" data-jeden="1">' +
+      terminy.map(([v, t]) => '<button type="button" class="chip' + (ED.termin === v ? ' on' : '') + '" onclick="edUstaw(\'termin\',\'' + v + '\')">' + t + '</button>').join('') +
+      '<label class="edd">' + I('cal', 1) + '<span>' + (ED.termin && terminy.every(t => t[0] !== ED.termin) ? esc(terminKrotko(ED.termin)) : 'дата') + '</span><input type="date" value="' + esc(ED.termin) + '" onchange="edUstaw(\'termin\',this.value)"></label></div>') +
+    '<label>Кто делает</label><div class="chips" data-jeden="1">' + [['', 'Никто']].concat(D.ludzie.map(p => [p.id, p.imie])).map(([v, t]) =>
+      '<button type="button" class="chip' + (ED.dla === v ? ' on' : '') + '" onclick="edUstaw(\'dla\',\'' + jsq(v) + '\')">' + esc(t) + '</button>').join('') + '</div>' +
+    (zak ? '' : '<label>Напомнить' + (ED.przyp ? ': <b>' + esc(terminKrotko(ED.przyp) + ', ' + ED.przyp.slice(11, 16)) + '</b>' : '') + '</label><div class="chips" data-jeden="1">' +
+      przyp.map(([v, t]) => '<button type="button" class="chip' + (przypWart === v ? ' on' : '') + '" onclick="edPrzyp(\'' + v + '\')">' + t + '</button>').join('') +
+      '<label class="edd' + (przypWart === 'inne' ? ' on' : '') + '">' + I('clock', 1) + '<span>своё время</span><input type="datetime-local" value="' + esc(ED.przyp) + '" onchange="edUstaw(\'przyp\',this.value)"></label></div>') +
+    '<div class="dwa"><div><label>Список</label><select id="edL" class="as-in" onchange="edUstaw(\'lista\',this.value)">' + listyWszystkie().map(id => '<option value="' + esc(id) + '"' + (ED.lista === id ? ' selected' : '') + '>' + esc(nazwaListy(id)) + '</option>').join('') + '</select></div>' +
+    (zak ? '<div><label>Отдел</label><select class="as-in" onchange="edUstaw(\'dzial\',this.value)">' + (D.dzialy || []).map(([k, n]) => '<option value="' + k + '"' + (ED.dzial === k ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>' : '') + '</div>' +
+    '<label>Заметка</label><textarea id="edN" class="as-in" rows="2" placeholder="необязательно">' + esc(ED.notatka) + '</textarea>' +
+    '<div class="ab"><button class="btn" onclick="zapiszEd()">' + I('check', 1) + ' Сохранить</button><button class="btn2" onclick="ED=null;arkZamknij()">Отмена</button></div>';
+  const a = document.getElementById('ark'), bylo = a.classList.contains('on') && a.querySelector('.ar');
+  if (bylo) { const t = document.getElementById('edT'), n = document.getElementById('edN'); if (t) ED.tytul = t.value; if (n) ED.notatka = n.value; }
+  const sc = bylo ? a.querySelector('.ar').scrollTop : 0;
+  ark(h, !!bylo);
+  if (bylo) { document.getElementById('edT').value = ED.tytul; document.getElementById('edN').value = ED.notatka; a.querySelector('.ar').scrollTop = sc; }
+}
+function edUstaw(k, v) {
+  const t = document.getElementById('edT'), n = document.getElementById('edN'); if (t) ED.tytul = t.value; if (n) ED.notatka = n.value;
+  const bylTermin = ED.termin;
+  ED[k] = v;
+  if (k === 'termin' && ED.przyp && bylTermin) {   // przypomnienie „w dzień terminu” idzie razem z terminem
+    if (ED.przyp === bylTermin + 'T09:00') ED.przyp = v ? v + 'T09:00' : '';
+    else if (ED.przyp === plusDni(bylTermin, -1) + 'T19:00') ED.przyp = v ? plusDni(v, -1) + 'T19:00' : '';
+  }
+  if (k === 'lista' && czyZakupy(v) && !ED.dzial) ED.dzial = 'inne';
+  rysujArkusz();
+}
+function edPrzyp(v) {
+  if (v && !ED.termin) ED.termin = dzis();
+  edUstaw('przyp', v === 'rano' ? ED.termin + 'T09:00' : v === 'wieczor' ? plusDni(ED.termin, -1) + 'T19:00' : '');
+}
+function zapiszEd() {
+  const o = (D.pozycje || []).find(x => x.id === ED.id); if (!o) return arkZamknij();
+  ED.tytul = document.getElementById('edT').value.trim(); ED.notatka = document.getElementById('edN').value.trim();
+  if (!ED.tytul) return toast('Название не может быть пустым');
+  const zmiany = {};
+  ['tytul', 'termin', 'dla', 'przyp', 'lista', 'dzial', 'notatka'].forEach(k => { if (String(ED[k] || '') !== String(o[k] || '')) zmiany[k] = ED[k] || ''; });
+  if (zmiany.przyp) zmiany.przyp = zmiany.przyp.slice(0, 16);
+  const id = ED.id; ED = null; arkZamknij();
+  if (!Object.keys(zmiany).length) return;
+  zmiana('pozZmien', Object.assign({ id: id }, zmiany), d => {
+    const x = d.pozycje.find(y => y.id === id); if (!x) return;
+    Object.assign(x, zmiany);
+    if (zmiany.lista) d.pozycje.filter(y => y.rodzic === id).forEach(y => y.lista = zmiany.lista);
+  }, 'Сохранено');
+}
+function dodajPod() {
+  const e = document.getElementById('edNowa'), v = e.value.trim(); if (!v || !ED) return;
+  const rodzic = ED.id, id = nowyId();
+  e.value = '';
+  zmiana('pozDodaj', { rodzic: rodzic, tytul: v, id: id }, d => { const r = d.pozycje.find(y => y.id === rodzic);
+    d.pozycje.push({ id: id, lista: r ? r.lista : LISTA, tytul: v, rodzic: rodzic, dla: '', od: d.ja.id, termin: '', przyp: '', dzial: '', notatka: '', status: 'nowe', kolejnosc: Date.now() }); });
+  odswiezArkusz();
+  setTimeout(() => { const n = document.getElementById('edNowa'); if (n) n.focus(); }, 30);
+}
+function usunPod(id) {
+  const p = (D.pozycje || []).find(x => x.id === id); if (!p) return;
+  const kopia = Object.assign({}, p);
+  zmiana('pozUsun', { id: id }, d => d.pozycje = d.pozycje.filter(x => x.id !== id));
+  odswiezArkusz();
+  toastAkcja('Подзадача удалена', 'Вернуть', () => {
+    zmiana('pozDodaj', { rodzic: kopia.rodzic, tytul: kopia.tytul, id: nowyId() }, d => d.pozycje.push(Object.assign({}, kopia, { status: 'nowe' })));
+    odswiezArkusz();
+  });
+}
+function menuPoz() {
+  const o = (D.pozycje || []).find(x => x.id === ED.id); if (!o) return;
+  const n = podzadania(o.id).length;
+  const id = o.id;
+  ark('<h4>Удалить «' + esc(o.tytul) + '»?</h4><div class="mute" style="margin-bottom:14px">' + (n ? 'Вместе с подзадачами (' + n + '). ' : '') + 'Вернуть будет нельзя.</div>' +
+    '<div class="ab"><button class="btn czerw" onclick="usunPoz(\'' + jsq(id) + '\')">' + I('trash', 1) + ' Удалить</button><button class="btn2" onclick="rysujArkusz()">Назад</button></div>');
+}
+function usunPoz(id) {
+  ED = null; arkZamknij();
+  zmiana('pozUsun', { id: id }, d => d.pozycje = d.pozycje.filter(x => x.id !== id && x.rodzic !== id), 'Удалено');
+}
+
+/* ---------- Ещё ---------- */
+function wWiecej() {
+  if (PODSTR === 'akt') return wAktualizacja();
+  if (PODSTR === 'info') return naglowek('О приложении', '') + '<div class="card"><div class="row"><div class="g">Приложение</div><b>' + WERSJA_APLIKACJI + '</b></div><div class="row"><div class="g">Сервер семьи</div><b>' + esc(D.wersja || '0.1') + '</b></div>' +
+    '<div class="row"><div class="g">Ты</div><b>' + esc(D.ja.imie) + '</b></div></div>';
+  const kafle = [];
+  if (window.FB && 'Notification' in window) kafle.push(['bell', D.ja.push ? 'Уведомления' : 'Включить уведомления', D.ja.push ? 'включены' : 'пуши на телефон', 'pushWlacz()']);
+  if (D.seriaKto) kafle.push(['flame', 'Серия', D.seria.dni + ' дн. без пропусков', 'go(\'dzis\')']);
+  if (D.ja.admin) kafle.push(['update', 'Обновление системы', 'проверить и установить', 'podstrona(\'akt\')']);
+  kafle.push(['info', 'О приложении', 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']);
+  return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';
+}
+function podstrona(p) { PODSTR = p; ANIM = true; render(); window.scrollTo(0, 0); }
+function naglowek(t, sub) {
+  return '<div class="phead"><button class="ib" onclick="podstrona(\'\')" aria-label="Назад">' + I('back') + '</button><div><b>' + esc(t) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div></div>';
+}
+let AKT = null;
+function wAktualizacja() {
+  let h = naglowek('Обновление системы', 'сервер семьи: версия ' + (D.wersja || '0.1'));
+  if (!D.listy) return h + '<div class="card">Сервер ещё старый (0.1): обновления через приложение заработают после первой установки.</div>';
+  if (!AKT) h += '<div class="card"><div class="mute" style="margin-bottom:12px">Обновления готовит Claude и кладёт в папку обновлений. Здесь видно, что поменяется, и ты решаешь, ставить или нет.</div><button class="btn szer" onclick="aktSprawdz()">' + I('refresh', 1) + ' Проверить обновления</button></div>';
+  else if (AKT.trwa) h += '<div class="card"><div class="empty mala">' + esc(AKT.trwa) + '</div></div>';
+  else if (AKT.brak) h += '<div class="card"><h3>' + I('check', 1) + 'Новых обновлений нет</h3><div class="mute">Сервер: версия ' + esc(AKT.wersja || D.wersja) + '</div><button class="btn2 szer" style="margin-top:12px" onclick="aktSprawdz()">Проверить ещё раз</button></div>';
+  else if (AKT.wynik) h += '<div class="card"><h3>' + I('check', 1) + 'Готово</h3><div style="white-space:pre-line">' + esc(AKT.wynik) + '</div><button class="btn2 szer" style="margin-top:12px" onclick="AKT=null;load();render()">Хорошо</button></div>';
+  else h += '<div class="card"><h3>' + I('update', 1) + esc(AKT.id) + '</h3><div style="white-space:pre-line;margin-bottom:10px">' + esc(AKT.opis) + '</div>' +
+    '<div class="mute" style="white-space:pre-line">' + esc((AKT.zmiany || []).join('\n')) + '</div>' +
+    (AKT.reszta ? '<div class="mute" style="margin-top:6px">В очереди ещё: ' + AKT.reszta + '</div>' : '') + (AKT.uwaga ? '<div class="kr" style="margin-top:6px">' + esc(AKT.uwaga) + '</div>' : '') +
+    ((AKT.bledy || []).length ? '<div class="kr" style="white-space:pre-line;margin-top:10px">Не подходит к коду, ставить нельзя:\n• ' + esc(AKT.bledy.join('\n• ')) + '</div><button class="btn2 szer" style="margin-top:12px" onclick="AKT=null;render()">Понятно</button>'
+      : '<div class="ab"><button class="btn" onclick="aktWykonaj()">' + I('check', 1) + ' Установить</button><button class="btn2" onclick="AKT=null;render()">Не сейчас</button></div>') + '</div>';
+  h += '<button class="btn2 szer" onclick="aktCofnijPytaj()">' + I('undo', 1) + 'Откатить последнее обновление</button>';
   return h;
 }
-function wiersZad(z) {
-  const zr = z.status === 'zrobione', moge = z.dla === D.ja.id;
-  const po = z.termin && z.termin < D.dzis && !zr;
-  return '<div class="row' + (zr ? ' done' : '') + '">' + (moge && !zr ? '<button class="chk" onclick="akcja(\'zadanieZrobione\',{id:\'' + jsq(z.id) + '\'},\'Сделано\')"></button>' : '<button class="chk" disabled>' + (zr ? '✓' : '') + '</button>') +
-    '<div class="g"><div class="t">' + (z.typ === 'kuchnia' ? '🍳 ' : '') + esc(z.tytul) + '</div><div class="mute">' +
-    (z.dla !== D.ja.id ? 'для ' + esc(imie(z.dla)) + ' · ' : '') + (z.od && z.od !== D.ja.id ? 'от ' + esc(imie(z.od)) + ' · ' : '') +
-    (z.termin ? '<span style="' + (po ? 'color:var(--red)' : '') + '">до ' + esc(dzienTekst(z.termin).replace('Сегодня · ', 'сегодня, ').replace('Завтра · ', 'завтра, ')) + '</span>' : '') + '</div></div>' +
-    (!zr && (z.od === D.ja.id || D.ja.rola === 'rodzic') && z.typ !== 'kuchnia' ? '<button class="x" onclick="if(confirm(\'Удалить задачу?\'))akcja(\'zadanieUsun\',{id:\'' + jsq(z.id) + '\'})">×</button>' : '') + '</div>';
+function aktSprawdz() {
+  AKT = { trwa: 'Проверяю…' }; render();
+  api('aktSprawdz').then(w => { AKT = w; render(); }).catch(e => { AKT = null; render(); toast(e.message); });
 }
-function formZad(z) {
-  z = z || {};
-  ark('<h4>Новая задача</h4><label>Что сделать</label><input id="zT" value="' + esc(z.tytul || '') + '">' +
-    '<label>Кому</label>' + chipsKto('zK', [z.dla || D.ja.id]).replace('<div class="chips"', '<div class="chips" data-jeden="1"').replace(/<button[^>]*data-v="wszyscy"[^>]*>Все<\/button>/, '') +
-    '<label>Срок</label><input id="zD" type="date" value="' + esc(z.termin || '') + '">' +
-    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Отмена</button><button class="btn" onclick="zapiszZad()">Сохранить</button></div>');
+function aktWykonaj() {
+  const plik = AKT.plik; AKT = { trwa: 'Ставлю обновление… (до минуты)' }; render();
+  api('aktWykonaj', { plik: plik }).then(w => { AKT = { wynik: w.tekst }; render(); }).catch(e => { AKT = null; render(); toast(e.message); });
 }
-function zapiszZad() {
-  const t = document.getElementById('zT').value.trim(); if (!t) return toast('Напиши, что сделать');
-  const dla = (document.querySelector('#zK .chip.on') || {}).dataset;
-  akcja('zadanieDodaj', { tytul: t, dla: dla ? dla.v : D.ja.id, termin: document.getElementById('zD').value }, 'Сохранено').then(w => { if (w && w.ja) arkZamknij(); });
+function aktCofnijPytaj() {
+  api('aktCofnijInfo').then(w => {
+    if (w.brak) return toast('Откатывать нечего');
+    ark('<h4>Откатить «' + esc(w.patch) + '»?</h4><div class="mute" style="margin-bottom:14px">Код вернётся к состоянию на ' + esc(w.t) + '. Данные в таблице не трогаются.</div>' +
+      '<div class="ab"><button class="btn czerw" onclick="aktCofnij(\'' + jsq(w.kopia) + '\')">' + I('undo', 1) + ' Откатить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
+  }).catch(e => toast(e.message));
+}
+function aktCofnij(kopia) {
+  arkZamknij(); AKT = { trwa: 'Откатываю…' }; render();
+  api('aktCofnij', { kopia: kopia }).then(w => { AKT = { wynik: w.tekst }; render(); }).catch(e => { AKT = null; render(); toast(e.message); });
 }
 
-function jade() {
-  akcja('jadeDomu', { min: JADE_MIN }, 'Готово, дома знают 🚗');
+/* ---------- arkusz od dołu ---------- */
+function ark(html, bezAnimacji) {
+  const a = document.getElementById('ark');
+  a.innerHTML = '<div class="tlo" onclick="ED=null;arkZamknij()"></div><div class="ar' + (bezAnimacji ? ' stoi' : '') + '">' + html + '</div>';
+  a.classList.add('on');
+}
+function arkZamknij() {
+  const a = document.getElementById('ark');
+  if (a.classList.contains('on') && a.querySelector('.ar')) {
+    const g = a.cloneNode(true), ar = g.querySelector('.ar'), tlo = g.querySelector('.tlo');
+    g.style.pointerEvents = 'none'; g.removeAttribute('id'); g.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    ar.style.animation = 'none'; if (tlo) tlo.style.animation = 'none';
+    document.body.appendChild(g); void g.offsetWidth;
+    ar.style.transition = 'transform .24s ease-in'; ar.style.transform = 'translateY(110%)';
+    if (tlo) { tlo.style.transition = 'opacity .24s'; tlo.style.opacity = '0'; }
+    setTimeout(() => g.remove(), 280);
+  }
+  a.classList.remove('on'); a.innerHTML = '';
+  if (D) render();
 }
 
-// ---------- быстрое добавление текстом (Claude разбирает, ты подтверждаешь)
+/* ---------- szybkie dodawanie tekstem (Claude rozbiera, człowiek potwierdza) ---------- */
 let PROP = null;
 function szybko() {
   const e = document.getElementById('szt'), t = e.value.trim(); if (!t) return;
-  document.body.classList.add('wait');
+  ikonaOdsw(true);
   api('szybko', { tekst: t }).then(p => {
     PROP = p;
-    if (p.typ === 'niejasne') return ark('<h4>Уточни</h4><div>' + esc(p.pytanie || 'Не понял, напиши подробнее') + '</div><div class="ab"><button class="btn" onclick="arkZamknij();document.getElementById(\'szt\').focus()">Ок</button></div>');
-    const opis = p.podsumowanie || (p.typ === 'zakupy' ? (p.pozycje || []).join(', ') : p.tytul);
-    const typ = { wydarzenie: '📅 Событие', zakupy: '🛒 В покупки', zadanie: '✅ Задача' }[p.typ] || p.typ;
-    ark('<h4>' + typ + '</h4><div class="t" style="font-size:19px">' + esc(opis) + '</div><div class="mute" style="margin-top:4px">Верно?</div>' +
-      '<div class="ab"><button class="btn2" onclick="szybkoPopraw()">Поправить</button><button class="btn" onclick="szybkoTak()">Да, сохранить</button></div>');
-  }).catch(err => toast(err.message)).finally(() => document.body.classList.remove('wait'));
+    if (p.typ === 'niejasne') return ark('<h4>Уточни</h4><div>' + esc(p.pytanie || 'Не понял, напиши подробнее') + '</div><div class="ab"><button class="btn" onclick="arkZamknij()">Ок</button></div>');
+    const opis = p.podsumowanie || (p.typ === 'pozycje' ? (p.pozycje || []).join(', ') : p.tytul);
+    const typ = p.typ === 'wydarzenie' ? 'В календарь' : 'В список «' + nazwaListy(p.lista || 'moje') + '»';
+    ark('<h4>' + esc(typ) + '</h4><div class="t" style="font-size:19px;margin:6px 0">' + esc(opis) + '</div><div class="mute">Верно?</div>' +
+      '<div class="ab"><button class="btn" onclick="szybkoTak()">' + I('check', 1) + ' Да, сохранить</button><button class="btn2" onclick="szybkoPopraw()">Поправить</button></div>');
+  }).catch(err => toast(err.message)).finally(() => ikonaOdsw(false));
 }
 function szybkoTak() {
-  const p = PROP, e = document.getElementById('szt'); arkZamknij();
-  const po = w => { if (w && w.ja) e.value = ''; };
-  if (p.typ === 'wydarzenie') akcja('wydarzenieDodaj', { tytul: p.tytul, start: p.start, kto: p.kto || 'wszyscy', miejsce: p.miejsce || '', przyp: p.przyp || 0 }, 'В календаре').then(po);
-  else if (p.typ === 'zakupy') akcja('zakupDodaj', { nazwa: (p.pozycje || []).join(',') }, 'В списке покупок').then(po);
-  else if (p.typ === 'zadanie') akcja('zadanieDodaj', { tytul: p.tytul, dla: p.dla || D.ja.id, termin: p.termin || '' }, 'Задача сохранена').then(po);
+  const p = PROP, e = document.getElementById('szt'); arkZamknij(); if (e) e.value = '';
+  if (p.typ === 'wydarzenie') {
+    const w = { id: nowyId(), tytul: p.tytul, start: p.start, kto: p.kto || 'wszyscy', miejsce: p.miejsce || '', przyp: p.przyp || 0 };
+    zmiana('wydarzenieDodaj', w, d => { d.wydarzenia.push(w); d.wydarzenia.sort((a, b) => a.start < b.start ? -1 : 1); }, 'В календаре');
+  } else if (p.typ === 'pozycje') {
+    const lista = listyWszystkie().indexOf(p.lista) >= 0 ? p.lista : 'moje';
+    zmiana('pozDodaj', { lista: lista, tytul: (p.pozycje || []).join(lista === 'moje' || !czyZakupy(lista) ? ' ' : ','), dla: p.dla || '', termin: p.termin || '' }, null, 'Добавлено в «' + nazwaListy(lista) + '»');
+  }
 }
 function szybkoPopraw() {
   const p = PROP;
   if (p.typ === 'wydarzenie') formWyd(p);
-  else if (p.typ === 'zadanie') formZad(p);
-  else { arkZamknij(); tab('zak'); setTimeout(() => { const n = document.getElementById('zN'); if (n) { n.value = (p.pozycje || []).join(', '); n.focus(); } }, 50); }
+  else { arkZamknij(); LISTA = listyWszystkie().indexOf(p.lista) >= 0 ? p.lista : 'moje'; go('listy'); setTimeout(() => { const n = document.getElementById('nowa'); if (n) { n.value = (p.pozycje || []).join(', '); n.focus(); } }, 50); }
 }
 
-// ---------- пуш-уведомления (Firebase; включаются, когда в config.js есть ключи)
+/* ---------- push (Firebase; włączają się, gdy w config.js są klucze) ---------- */
 function skrypt(src) { return new Promise((ok, bl) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = bl; document.head.appendChild(s); }); }
 async function pushWlacz() {
   if (!window.FB) return toast('Уведомления ещё не настроены');
@@ -318,13 +919,16 @@ async function pushWlacz() {
     const reg = await navigator.serviceWorker.ready;
     const t = await firebase.messaging().getToken({ vapidKey: FB.vapidKey, serviceWorkerRegistration: reg });
     await api('pushToken', { t: t });
-    D.ja.push = true; render(); toast('Уведомления включены 🔔');
+    D.ja.push = true; render(); toast('Уведомления включены');
   } catch (e) { toast('Не вышло: ' + e.message); }
 }
 
+/* ---------- start ---------- */
+document.getElementById('logo').innerHTML = I('home');
+document.getElementById('odsw').innerHTML = I('refresh');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
-setInterval(() => { if (!document.hidden && !document.getElementById('ark').classList.contains('on')) load(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('ark').classList.contains('on')) load(); });
+nav();
 load();
 </script>
 </body>
