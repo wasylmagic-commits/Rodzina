@@ -1,4 +1,6 @@
-/* dokumenty.js — Rodzina 0.3 (23.11.2026)
+/* dokumenty.js — Rodzina 0.8 (23.11.2026)
+ * 0.8: wizyty — status (ждёт записи / записан / был), к кому и куда, adres, telefon, data i godzina wizyty → wydarzenie z przypomnieniem (serwer ≥ 0.9.0); karty „Ближайшие визиты” i „Ждут записи”.
+ * 0.3:
  * Zakładka „Документы”: lista po kategoriach, termin ważności, podgląd, udostępnianie.
  * Dodawanie: „Сфотографировать” (aparat) albo „Загрузить” (galeria / PDF).
  *   Zdjęcie → skaner jak w Serwis myjni (prostowanie, przycięcie, czytelność) → kilka stron → „PDF или фото?” →
@@ -9,6 +11,11 @@
   const IKONY_KAT = { auto: 'car', ubezp: 'shield', med: 'med', rodzina: 'id', dom: 'home', szkola: 'book', inne: 'box' };
   const WID = [['ja', 'Только владелец'], ['rodzice', 'Родители'], ['wszyscy', 'Вся семья']];
   let KAT = 'wszystkie', SZUKAJ = '', NOWY = null, SYNC = false;
+  const WIZ_ST = [['', 'Нет'], ['czeka', 'Ждёт записи'], ['umowione', 'Записан'], ['zrobione', 'Был(а)']];
+  const wizTekst = w => w ? dataPl(w.slice(0, 10)) + ', ' + w.slice(11, 16) : '';
+  const maWizyte = d => !!(d.status || d.wizyta || d.do_kogo || d.adres || d.telefon);
+  const terazT = () => dzis() + 'T' + new Date().toTimeString().slice(0, 5);
+  const wzgl = w => { const n = dniDo(w); return n === 0 ? 'сегодня' : n === 1 ? 'завтра' : dataPl(w.slice(0, 10)); };
   const kategorie = () => D.kategorie || [];
   const nazwaKat = k => (kategorie().find(x => x[0] === k) || [k, k])[1];
   const czyje = w => w === 'rodzina' ? 'семья' : imie(w);
@@ -29,13 +36,14 @@
       '<label class="btn btn-j"><input type="file" accept="image/*,application/pdf" multiple hidden onchange="dokZdjecia(this,0)">' + I('upload', 1) + 'Загрузить</label></div>' +
       '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="skanerOkno()">' + I('note', 1) + 'Сканер — ровнее и чётче</button>' +
       (D.ja.admin ? '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="wejscieTeraz()">' + I('id', 1) + 'Разобрать «Wejscie»</button>' : '');
+    h += dokKarta();
     if (wsz.length > 6) h += '<input type="search" placeholder="Поиск по документам" value="' + esc(SZUKAJ) + '" oninput="dokSzukaj(this.value)">';
     const licz = k => wsz.filter(d => d.kategoria === k).length;
     h += '<div class="seg">' + [['wszystkie', 'Все']].concat(kategorie().filter(k => licz(k[0])).map(k => [k[0], k[1]])).map(([k, n]) =>
       '<button class="' + (KAT === k ? 'on' : '') + '" onclick="dokKat(\'' + k + '\')">' + (k === 'wszystkie' ? '' : I(ikonaKat(k), 1)) + esc(n) + (k === 'wszystkie' ? ' <em class="licz">' + wsz.length + '</em>' : '') + '</button>').join('') + '</div>';
     if (!wsz.length) return h + '<div class="card"><div class="empty">Документов пока нет.<br>Сфотографируй полис, техпаспорт или справку — я выровняю, сделаю PDF и подскажу, куда положить.</div></div>';
     const q = SZUKAJ.toLowerCase();
-    const lista = wsz.filter(d => (KAT === 'wszystkie' || d.kategoria === KAT) && (!q || (d.tytul + ' ' + d.notatka + ' ' + czyje(d.wlasciciel) + ' ' + nazwaAuta(d.auto)).toLowerCase().indexOf(q) >= 0));
+    const lista = wsz.filter(d => (KAT === 'wszystkie' || d.kategoria === KAT) && (!q || (d.tytul + ' ' + d.notatka + ' ' + czyje(d.wlasciciel) + ' ' + nazwaAuta(d.auto) + ' ' + (d.do_kogo || '') + ' ' + (d.adres || '')).toLowerCase().indexOf(q) >= 0));
     const konczy = lista.filter(d => { const n = dniDo(d.wazny_do); return n !== null && n <= 30; });
     if (konczy.length && !q && KAT === 'wszystkie') h += '<div class="card"><h3 class="r">' + I('alert', 1) + 'Скоро истекают</h3>' + konczy.map(wiersz).join('') + '</div>';
     if (KAT === 'wszystkie' && !q) kategorie().forEach(k => { const w = lista.filter(d => d.kategoria === k[0]); if (w.length) h += '<div class="card"><h3>' + I(ikonaKat(k[0]), 1) + esc(k[1]) + ' <span class="mute">' + w.length + '</span></h3>' + w.map(wiersz).join('') + '</div>'; });
@@ -45,11 +53,31 @@
   function wiersz(d) {
     const meta = [czyje(d.wlasciciel)];
     if (d.auto && nazwaAuta(d.auto)) meta.push(nazwaAuta(d.auto));
+    if (d.status === 'czeka') meta.push(I('clock', 1) + 'ждёт записи');
+    if (d.status === 'umowione' && d.wizyta) meta.push(I('cal', 1) + 'визит ' + esc(wizTekst(d.wizyta)));
+    if (d.do_kogo) meta.push(esc(d.do_kogo));
     if (d.widocznosc === 'ja') meta.push(I('eye', 1) + 'личное');
     if (d.sos) meta.push(I('shield', 1) + 'SOS');
     return '<div class="row w" onclick="dokPokaz(\'' + jsq(d.id) + '\')"><div class="av dk">' + I(/pdf/.test(d.mime) ? 'note' : 'image', 1) + '</div><div class="g"><div class="t">' + esc(d.tytul) + '</div>' +
       '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div></div>' + dokTermin(d) + '</div>';
   }
+  function wierszWiz(d, tryb) {
+    const meta = [czyje(d.wlasciciel)]; if (d.do_kogo) meta.unshift(esc(d.do_kogo));
+    const pill = tryb === 'wizyta' ? '<span class="pill' + (dniDo(d.wizyta) <= 1 ? ' o' : '') + '">' + esc(wzgl(d.wizyta)) + ', ' + esc(d.wizyta.slice(11, 16)) + '</span>' : dokTermin(d);
+    return '<div class="row w" onclick="dokPokaz(\'' + jsq(d.id) + '\')"><div class="av dk">' + I(ikonaKat(d.kategoria), 1) + '</div><div class="g"><div class="t">' + esc(d.tytul) + '</div>' +
+      '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div></div>' + pill + '</div>';
+  }
+  // karty „Ближайшие визиты” i „Ждут записи” (на «Сегодня» i w «Документы»)
+  window.dokKarta = function () {
+    const wsz = D.dokumenty || []; if (!D.kategorie || !wsz.length) return '';
+    const t = terazT();
+    const wiz = wsz.filter(d => d.status === 'umowione' && d.wizyta && d.wizyta >= t).sort((a, b) => a.wizyta < b.wizyta ? -1 : 1).slice(0, 3);
+    const czek = wsz.filter(d => d.status === 'czeka').sort((a, b) => (a.wazny_do || '9') < (b.wazny_do || '9') ? -1 : 1);
+    let h = '';
+    if (wiz.length) h += '<div class="card"><h3>' + I('cal', 1) + 'Ближайшие визиты</h3>' + wiz.map(d => wierszWiz(d, 'wizyta')).join('') + '</div>';
+    if (czek.length) h += '<div class="card"><h3>' + I('clock', 1) + 'Ждут записи <span class="mute">' + czek.length + '</span></h3>' + czek.map(d => wierszWiz(d, 'czeka')).join('') + '</div>';
+    return h;
+  };
   window.dokKat = k => { KAT = k; render(); };
   let ST = 0;
   window.dokSzukaj = v => { SZUKAJ = v; clearTimeout(ST); ST = setTimeout(() => { render(); const e = document.querySelector('main input[type=search]'); if (e) { e.focus(); e.setSelectionRange(v.length, v.length); } }, 250); };
@@ -76,7 +104,7 @@
   window.dokPokaz = function (id) {
     const d = (D.dokumenty || []).find(x => x.id === id); if (!d) return;
     const meta = [nazwaKat(d.kategoria), czyje(d.wlasciciel), nazwaAuta(d.auto), d.wazny_do ? 'действует до ' + dataPl(d.wazny_do) : '', d.rozmiar ? Math.max(1, Math.round(d.rozmiar / 1024)) + ' КБ' : ''].filter(Boolean);
-    ark('<h4>' + esc(d.tytul) + '</h4><div class="mute" style="margin-bottom:10px">' + esc(meta.join(' · ')) + '</div>' + (d.notatka ? '<div style="margin-bottom:10px;white-space:pre-line">' + esc(d.notatka) + '</div>' : '') +
+    ark('<h4>' + esc(d.tytul) + '</h4><div class="mute" style="margin-bottom:10px">' + esc(meta.join(' · ')) + '</div>' + (d.notatka ? '<div style="margin-bottom:10px;white-space:pre-line">' + esc(d.notatka) + '</div>' : '') + blokWizyty(d) +
       '<div id="dokPodg" class="podg"><div class="empty mala">' + (/pdf/.test(d.mime) ? I('note') + '<br>PDF' : 'Загружаю…') + '</div></div>' +
       '<div class="dwa" style="margin-top:12px"><button class="btn" onclick="dokOtworz(\'' + jsq(id) + '\')">' + I('download', 1) + ' Открыть</button><button class="btn2" onclick="dokUdostepnij(\'' + jsq(id) + '\')">' + I('share', 1) + 'Поделиться</button></div>' +
       '<div class="dwa" style="margin-top:10px"><button class="btn2" onclick="dokEdytuj(\'' + jsq(id) + '\')">' + I('pen', 1) + 'Изменить</button><button class="btn2" onclick="dokUsunPytaj(\'' + jsq(id) + '\')">' + I('trash', 1) + 'Удалить</button></div>' +
@@ -84,6 +112,22 @@
     if (/^image/.test(d.mime)) dokPlik(id).then(p => { const e = document.getElementById('dokPodg'); if (e) e.innerHTML = '<img src="data:' + p.mime + ';base64,' + p.b64 + '" alt="">'; })
       .catch(e => { const x = document.getElementById('dokPodg'); if (x) x.innerHTML = '<div class="empty mala">' + esc(e.message) + '</div>'; });
   };
+  function blokWizyty(d) {
+    if (!maWizyte(d)) return '';
+    const st = (WIZ_ST.find(x => x[0] === (d.status || '')) || ['', ''])[1];
+    const lin = [];
+    if (st && d.status) lin.push('<div><b>' + I(d.status === 'czeka' ? 'clock' : d.status === 'zrobione' ? 'check' : 'cal', 1) + ' ' + esc(st) + (d.status === 'umowione' && d.wizyta ? ': ' + esc(wizTekst(d.wizyta)) : '') + '</b></div>');
+    if (d.do_kogo) lin.push('<div>' + esc(d.do_kogo) + '</div>');
+    if (d.adres) lin.push('<div class="mute">' + I('pin', 1) + ' ' + esc(d.adres) + '</div>');
+    if (d.telefon) lin.push('<div class="mute">' + I('phone', 1) + ' ' + esc(d.telefon) + '</div>');
+    const tel = String(d.telefon || '').replace(/[^\d+]/g, '');
+    const przyc = (tel ? '<a class="btn2" href="tel:' + esc(tel) + '">' + I('phone', 1) + 'Позвонить</a>' : '') +
+      (d.adres ? '<a class="btn2" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(d.adres) + '">' + I('pin', 1) + 'Маршрут</a>' : '') +
+      (d.status === 'czeka' ? '<button class="btn2" onclick="dokEdytuj(\'' + jsq(d.id) + '\',1)">' + I('cal', 1) + 'Записался</button>' : '') +
+      (d.status === 'umowione' ? '<button class="btn2" onclick="dokStatus(\'' + jsq(d.id) + '\',\'zrobione\')">' + I('check', 1) + 'Был(а)</button>' : '');
+    return '<div class="wizblok" style="margin-bottom:10px;padding:10px 12px;border-radius:12px;background:var(--bg2,rgba(127,127,127,.12))">' + lin.join('') + (przyc ? '<div class="dwa" style="margin-top:8px;flex-wrap:wrap">' + przyc + '</div>' : '') + '</div>';
+  }
+  window.dokStatus = (id, st) => { arkZamknij(); zmiana('dokZmien', { id: id, status: st }, x => { const y = x.dokumenty.find(z => z.id === id); if (y) y.status = st; }, 'Отмечено'); };
   window.dokOtworz = async id => { toast('Открываю…'); try { const p = await dokPlik(id); pobierzPlik(p.b64, p.mime, p.nazwa); } catch (e) { toast(e.message); } };
   window.dokUdostepnij = async id => { const d = (D.dokumenty || []).find(x => x.id === id) || {}; try { const p = await dokPlik(id); await udostepnijPlik(p.b64, p.mime, p.nazwa, d.tytul); } catch (e) { toast(e.message); } };
   window.dokUsunPytaj = id => {
@@ -106,11 +150,23 @@
         '<button type="button" class="chip' + ((o.auto || '') === v ? ' on' : '') + '" onclick="dokUst(\'auto\',\'' + jsq(v) + '\')">' + esc(t) + '</button>').join('') + '</div>' : '') +
       '<label>Действует до <span class="mute">(напомню за месяц, неделю и накануне)</span></label><div class="chips"><label class="edd' + (o.wazny_do ? ' on' : '') + '">' + I('cal', 1) + '<span>' + (o.wazny_do ? esc(dataPl(o.wazny_do)) : 'выбрать дату') + '</span>' +
         '<input type="date" value="' + esc(o.wazny_do || '') + '" onchange="dokUst(\'wazny_do\',this.value)"></label>' + (o.wazny_do ? '<button type="button" class="chip" onclick="dokUst(\'wazny_do\',\'\')">без срока</button>' : '') + '</div>' +
+      blokFormyWizyty(o, kat) +
       '<label>Кто видит</label><div class="seg">' + WID.map(([v, t]) => '<button type="button" class="' + (o.widocznosc === v ? 'on' : '') + '" onclick="dokUst(\'widocznosc\',\'' + v + '\')">' + t + '</button>').join('') + '</div>' +
       '<div class="row" style="border:0;padding-top:0"><div class="g"><b>Держать в телефоне для SOS</b><div class="mute">откроется без интернета — в аварии, где нет связи</div></div>' +
         '<button type="button" class="sw" role="switch" aria-checked="' + !!o.sos + '" onclick="dokUst(\'sos\',' + (o.sos ? 0 : 1) + ')"><i></i></button></div>' +
       '<label>Заметка</label><textarea id="doN" class="as-in" rows="2" placeholder="необязательно">' + esc(o.notatka || '') + '</textarea>' +
       '<div class="ab"><button class="btn" onclick="' + przycisk + '">' + I('check', 1) + ' Сохранить</button><button class="btn2" onclick="dokAnuluj()">Отмена</button></div>';
+  }
+  function blokFormyWizyty(o, kat) {
+    if (!(kat === 'med' || o.wizOtwarte || o.status || o.wizD || o.do_kogo || o.adres || o.telefon))
+      return '<button type="button" class="btn2 szer" style="margin:12px 0 0" onclick="dokUst(\'wizOtwarte\',1)">' + I('cal', 1) + 'Визит или запись (врач, сервис)</button>';
+    return '<label>Визит</label><div class="seg">' + WIZ_ST.map(([v, t]) => '<button type="button" class="' + ((o.status || '') === v ? 'on' : '') + '" onclick="dokUst(\'status\',\'' + v + '\')">' + t + '</button>').join('') + '</div>' +
+      '<label>Куда / к кому</label><input id="doK" class="as-in" value="' + esc(o.do_kogo || '') + '" placeholder="Ортопед, Medicover / автосервис…">' +
+      '<div class="dwa"><div><label>Дата визита</label><input id="doWD" class="as-in" type="date" value="' + esc(o.wizD || '') + '"></div>' +
+      '<div><label>Время</label><input id="doWG" class="as-in" type="time" value="' + esc(o.wizG || '') + '"></div></div>' +
+      '<div class="mute" style="margin-top:4px">С датой и временем создам событие и напомню за 2 часа; накануне вечером оно будет в сводке.</div>' +
+      '<label>Адрес</label><input id="doA" class="as-in" value="' + esc(o.adres || '') + '" placeholder="улица, город">' +
+      '<label>Телефон</label><input id="doTel" class="as-in" type="tel" value="' + esc(o.telefon || '') + '" placeholder="для кнопки «Позвонить»">';
   }
   let OPIS = null, OPIS_TRYB = '';
   function rysujOpis(bezAnim) {
@@ -118,7 +174,18 @@
     ark(formOpis(OPIS, OPIS_TRYB === 'nowy' ? 'Куда положить?' : 'Изменить документ', OPIS_TRYB === 'nowy' ? 'dokZapisz()' : 'dokZapiszZmiane()'), bezAnim);
     const n = a.querySelector('.ar'); if (n && bezAnim) n.scrollTop = sc;
   }
-  function czytajPola() { const t = document.getElementById('doT'), n = document.getElementById('doN'); if (t) OPIS.tytul = t.value; if (n) OPIS.notatka = n.value; }
+  function czytajPola() {
+    const t = document.getElementById('doT'), n = document.getElementById('doN'); if (t) OPIS.tytul = t.value; if (n) OPIS.notatka = n.value;
+    [['doK', 'do_kogo'], ['doA', 'adres'], ['doTel', 'telefon'], ['doWD', 'wizD'], ['doWG', 'wizG']].forEach(([id, k]) => { const e = document.getElementById(id); if (e) OPIS[k] = e.value; });
+  }
+  // data + godzina → wizyta; status zgodny z serwerem (jest termin → записан; terminu nie ma, a był „записан” → ждёт записи)
+  function zlozWizyte(o) {
+    o.wizyta = o.wizD ? o.wizD + 'T' + (o.wizG || '') : '';
+    if (o.wizD && !o.wizG) return 'Укажи время визита';
+    if (o.wizyta && (!o.status || o.status === 'czeka')) o.status = 'umowione';
+    if (!o.wizyta && o.status === 'umowione') o.status = 'czeka';
+    return '';
+  }
   window.dokUst = (k, v) => {
     czytajPola(); OPIS[k] = v; OPIS.dotkniete = OPIS.dotkniete || {}; OPIS.dotkniete[k] = 1;
     if (k === 'kategoria') {   // domyślne dla kategorii, jeśli człowiek ich nie zmieniał
@@ -129,13 +196,17 @@
     rysujOpis(true);
   };
   window.dokAnuluj = () => { OPIS = null; NOWY = null; arkZamknij(); };
-  window.dokEdytuj = id => {
+  window.dokEdytuj = (id, zapisany) => {
     const d = (D.dokumenty || []).find(x => x.id === id); if (!d) return;
-    OPIS = Object.assign({}, d); OPIS_TRYB = 'zmiana'; rysujOpis();
+    OPIS = Object.assign({}, d); OPIS_TRYB = 'zmiana';
+    OPIS.wizD = (d.wizyta || '').slice(0, 10); OPIS.wizG = (d.wizyta || '').slice(11, 16);
+    if (zapisany) { OPIS.status = 'umowione'; OPIS.wizOtwarte = 1; }
+    rysujOpis();
   };
   window.dokZapiszZmiane = () => {
     czytajPola(); const o = OPIS, d = (D.dokumenty || []).find(x => x.id === o.id); if (!d) return dokAnuluj();
-    const zm = {}; ['tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'wazny_do', 'sos', 'notatka'].forEach(k => { if (String(o[k] == null ? '' : o[k]) !== String(d[k] == null ? '' : d[k])) zm[k] = o[k]; });
+    const blad = zlozWizyte(o); if (blad) return toast(blad);
+    const zm = {}; ['tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'wazny_do', 'sos', 'notatka', 'status', 'do_kogo', 'adres', 'telefon', 'wizyta'].forEach(k => { if (String(o[k] == null ? '' : o[k]) !== String(d[k] == null ? '' : d[k])) zm[k] = o[k]; });
     OPIS = null; arkZamknij();
     if (!Object.keys(zm).length) return;
     if (zm.sos === 0) Schowek.del('dok_' + d.id);
@@ -227,6 +298,8 @@
       OPIS.kategoria = p.kategoria || kat0; OPIS.propKat = p.kategoria;
       if (p.tytul) OPIS.tytul = p.tytul; if (p.wlasciciel) OPIS.wlasciciel = p.wlasciciel; if (p.auto) OPIS.auto = p.auto; if (p.wazny_do) OPIS.wazny_do = p.wazny_do;
       if (p.opis) OPIS.opisAI = p.opis;
+      if (p.do_kogo) OPIS.do_kogo = p.do_kogo; if (p.adres) OPIS.adres = p.adres; if (p.telefon) OPIS.telefon = p.telefon; if (p.status) OPIS.status = p.status;
+      if (p.wizyta) { OPIS.wizD = p.wizyta.slice(0, 10); OPIS.wizG = p.wizyta.slice(11, 16); }
     }
     if (!OPIS.tytul && NOWY.nazwa) OPIS.tytul = NOWY.nazwa.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ');
     const kat = kategorie().find(x => x[0] === OPIS.kategoria); if (kat) OPIS.widocznosc = kat[2];
@@ -238,6 +311,7 @@
     czytajPola();
     const o = OPIS, n = NOWY; if (!o || !n) return;
     if (!o.tytul.trim()) return toast('Дай документу название');
+    const blad = zlozWizyte(o); if (blad) return toast(blad);
     const pliki = n.pliki || (n.pliki = []);
     if (pliki.length) { /* ponowienie: wysyłam tylko to, co nie doszło */ }
     else if (n.pdf) pliki.push({ b64: n.pdf, mime: 'application/pdf', tytul: o.tytul });
@@ -250,7 +324,8 @@
         if (f.ok) continue;
         f.id = f.id || nowyId();
         w = await apiPost('dokZapisz', { id: f.id, b64: f.b64, mime: f.mime, tytul: f.tytul, kategoria: o.kategoria, wlasciciel: o.wlasciciel, auto: o.auto || '',
-          widocznosc: o.widocznosc, wazny_do: o.wazny_do || '', sos: o.sos ? 1 : 0, notatka: (o.notatka || '').trim() });
+          widocznosc: o.widocznosc, wazny_do: o.wazny_do || '', sos: o.sos ? 1 : 0, notatka: (o.notatka || '').trim(),
+          status: o.status || '', do_kogo: (o.do_kogo || '').trim(), adres: (o.adres || '').trim(), telefon: (o.telefon || '').trim(), wizyta: o.wizyta || '' });
         if (o.sos) Schowek.put('dok_' + f.id, { id: f.id, b64: f.b64, mime: f.mime, nazwa: f.tytul + (/pdf/.test(f.mime) ? '.pdf' : '.jpg') });
         const e = document.getElementById('dokPost'); if (e && pliki.length > 1) e.innerHTML = I('upload') + '<br>Отправлено ' + (i + 1) + ' из ' + pliki.length;
         pliki[i].ok = 1;

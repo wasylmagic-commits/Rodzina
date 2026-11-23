@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.8.2, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.9.0, 23.11.2026
+ * 0.9.0: dokumenty z wizytą: pola status (czeka/umowione/zrobione), do_kogo, adres, telefon, wizyta (data i godzina), wydarzenie; wizyta tworzy wydarzenie z przypomnieniem na 2 godziny przed (wizytaSync_), skierowania „czeka na zapis” w poniedziałkowej porannej wiadomości; Claude wyciąga z dokumentu lekarza/usługę, adres, telefon i datę wizyty, jeśli jest wydrukowana.
  * 0.8.2: „Еду домой” — dla każdego, kto naciska, osobna lista osób, które to widzą (klucz widza_<id>); domyślnie pozostali rodzice.
  * 0.8.1: wydatki: „kto kupił” — domyślnie ten, kto zrobił zdjęcie paragonu (można zmienić), podsumowanie miesiąca według osób.
  * 0.8.0: „Droga” — arkusz Miejsca (miejsca z adresem i sposobem dojazdu, na osobę lub wspólne), „Не знаю, куда идти” (zgubiona: punkt GPS → pilny push do rodziców); „Gdzie co kupić” tylko dla wybranego typu zakupów (parametr dzialy).
@@ -25,8 +26,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.8.2';
-const SCHEMAT = '8';
+const WERSJA = '0.9.0';
+const SCHEMAT = '9';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -43,7 +44,7 @@ const ARKUSZE = {
   Zakupy:        ['id', 'nazwa', 'dodal', 'czas', 'kupione', 'kupil', 'czas_kupna'],   // stary arkusz v0.1 — tylko do migracji
   Powiadomienia: ['id', 'dla', 'tekst', 'czas', 'status', 'pilne', 'push'],
   Ustawienia:    ['klucz', 'wartosc', 'opis'],
-  Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas'],
+  Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas', 'status', 'do_kogo', 'adres', 'telefon', 'wizyta', 'wydarzenie'],
   Dziennik:      ['czas', 'zrodlo', 'plik', 'status', 'odpowiedz'],
   Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas', 'kolor']
 };
@@ -535,6 +536,8 @@ const API = {
       widocznosc: widocznosc_(p.widocznosc, kat), plik: plik.getId(), mime: mime, nazwa_pliku: nazwa, rozmiar: bajty.length,
       wazny_do: /^\d{4}-\d\d-\d\d$/.test(p.wazny_do || '') ? p.wazny_do : '', sos: Number(p.sos) ? 1 : 0, notatka: String(p.notatka || '').slice(0, 500),
       od: ja.id, czas: teraz_() });
+    const nowy = znajdz_('Dokumenty', id), wp = wizytaPola_(p, {});
+    if (nowy && Object.keys(wp).length) { zmien_('Dokumenty', nowy, wp); wizytaSync_(nowy, ja); }
     return stan_(ja);
   },
   dokZmien: (ja, p) => {
@@ -549,13 +552,17 @@ const API = {
     if (p.sos !== undefined) pola.sos = Number(p.sos) ? 1 : 0;
     if (p.notatka !== undefined) pola.notatka = String(p.notatka).slice(0, 500);
     if (pola.kategoria && pola.kategoria !== o.kategoria) { try { DriveApp.getFileById(o.plik).moveTo(folderKat_(pola.kategoria)); } catch (e) {} }
+    Object.assign(pola, wizytaPola_(p, o));
+    const bylaWizyta = tekstDaty_(o.wizyta);
     zmien_('Dokumenty', o, pola);
+    if (['wizyta', 'tytul', 'do_kogo', 'adres', 'wlasciciel'].some(k => pola[k] !== undefined)) wizytaSync_(o, ja, bylaWizyta);
     return stan_(ja);
   },
   dokUsun: (ja, p) => {
     const o = znajdz_('Dokumenty', p.id); if (!o) return stan_(ja);
     if (!widziDok_(ja, o) || (ja.rola !== 'rodzic' && o.od !== ja.id)) throw new Error('Удалить может тот, кто добавил, или родитель');
     try { DriveApp.getFileById(o.plik).setTrashed(true); } catch (e) {}   // kosz Drive: 30 dni na odzyskanie
+    const ev = znajdz_('Wydarzenia', 'wiz_' + o.id); if (ev) ark_('Wydarzenia').deleteRow(ev._w);
     ark_('Dokumenty').deleteRow(o._w);
     return stan_(ja);
   },
@@ -609,7 +616,7 @@ function wolajClaudeDok_(key, sys, p, dopisek) {
   const odp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true,
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 700, system: sys, messages: [{ role: 'user', content: [
+    payload: JSON.stringify({ model: ust_('model') || 'claude-haiku-5-5', max_tokens: 900, system: sys, messages: [{ role: 'user', content: [
       (p.mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: String(p.b64) } }
         : { type: 'image', source: { type: 'base64', media_type: p.mime || 'image/jpeg', data: String(p.b64) } }),
       { type: 'text', text: 'Пишет: ' + p.ja + '. Имя файла: ' + String(p.nazwa || '—') + (dopisek || '') } ] }] })
@@ -629,7 +636,10 @@ function analizaDok_(ja, p) {
     'Имя файла может ничего не значить (например «wydruk») — смотри на содержимое. Владелец: сверь имя и фамилию в документе (Ubezpieczający / Ubezpieczony, imię i nazwisko) со списком людей и верни ИХ id. ' +
     'Срок: для полиса — конец «Okresu ubezpieczenia» (формат YYYY-MM-DD). ' +
     'Ответь ТОЛЬКО JSON, все поля заполняй: {"kategoria":"…","tytul":"короткое понятное название по-русски, до 6 слов, например «Полис OC Fiesta 2026»","wlasciciel":"id человека из списка или rodzina",' +
-    '"auto":"id машины или пусто","wazny_do":"YYYY-MM-DD — до какого числа документ действует (полис, техосмотр, карта, паспорт), иначе пусто","opis":"одна-две фразы: что это, страховщик, номер, суммы и даты платежей, если есть"}';
+    '"auto":"id машины или пусто","wazny_do":"YYYY-MM-DD — до какого числа документ действует (полис, техосмотр, карта, паспорт, направление skierowanie), иначе пусто",' +
+    '"do_kogo":"для направления, визита, приёма, записи в сервис: к кому или куда — специальность или врач, учреждение (например «Ортопед, Medicover»); иначе пусто","adres":"адрес учреждения, если напечатан, иначе пусто","telefon":"телефон учреждения, если напечатан, иначе пусто",' +
+    '"status":"czeka — если это направление или талон, по которому ещё нужно записаться; umowione — если в документе уже есть конкретные дата и время визита; иначе пусто","wizyta":"YYYY-MM-DDTHH:MM — ТОЛЬКО если дата и время визита напечатаны в документе (подтверждение записи, талон); срок действия направления это НЕ дата визита; ничего не выдумывай, иначе пусто",' +
+    '"opis":"одна-две фразы: что это, страховщик, номер, суммы и даты платежей, если есть"}';
   const rozbierz = t => {
     const m = String(t).match(/\{[\s\S]*\}/); if (!m) return null;
     try { return JSON.parse(m[0]); } catch (e) { return null; }
@@ -659,6 +669,8 @@ function analizaDok_(ja, p) {
   if (!wl) brak.push('владельца');
   return { kategoria: kategoria_(j.kategoria)[0], tytul: tytul, wlasciciel: wl,
     auto: auta.some(a => a.id === j.auto) ? j.auto : '', wazny_do: /^\d{4}-\d\d-\d\d$/.test(j.wazny_do || '') ? j.wazny_do : '', opis: String(j.opis || '').slice(0, 300), zrodlo: 'claude',
+    do_kogo: String(j.do_kogo || '').slice(0, 100), adres: String(j.adres || '').slice(0, 160), telefon: String(j.telefon || '').replace(/[^\d+ ()-]/g, '').slice(0, 30),
+    status: WIZ_STATUSY.indexOf(j.status) >= 0 ? j.status : '', wizyta: RE_WIZYTA.test(String(j.wizyta || '')) ? String(j.wizyta) : '',
     niepelne: brak.length ? 'не получил от Claude: ' + brak.join(', ') : '' };
 }
 // ---------------------------------------------------------------- skrzynka „Wejście”: pliki wrzucone prosto do folderu
@@ -710,6 +722,10 @@ function finalizujWejscie_(plik, admin, r, kat, tytul, wlasc, uwagi, mime, nazwa
   dodaj_('Dokumenty', { id: id_(), tytul: tytul, kategoria: kat[0], wlasciciel: wlasc, auto: r.auto || '', widocznosc: widocznosc_('', kat),
     plik: plik.getId(), mime: mime, nazwa_pliku: nazwa, rozmiar: plik.getSize(), wazny_do: r.wazny_do || '', sos: 0,
     notatka: uwagi.concat(r.opis ? [r.opis] : []).join('\n').slice(0, 500), od: admin.id, czas: teraz_() });
+  if (r.status || r.do_kogo || r.wizyta || r.adres || r.telefon) {
+    const nowy = wiersze_('Dokumenty').filter(d => d.plik === plik.getId())[0];
+    if (nowy) { zmien_('Dokumenty', nowy, wizytaPola_({ status: r.status, do_kogo: r.do_kogo, adres: r.adres, telefon: r.telefon, wizyta: r.wizyta }, nowy)); wizytaSync_(nowy, admin); }
+  }
   powiadom_([admin.id], '📂 Разложил: «' + tytul + '» → ' + kat[1] + (r.wazny_do ? ', действует до ' + ladnaData_(r.wazny_do) : '') + (uwagi.length ? '. ⚠️ ' + uwagi[0] : ''), true);
   return true;
 }
@@ -723,11 +739,50 @@ function zgadnijKat_(t) {
   const z = reg.filter(r => r[1].test(t))[0];
   return z ? z[0] : 'inne';
 }
+// ---------------------------------------------------------------- dokumenty z wizytą (skierowanie → zapis → wizyta)
+const WIZ_STATUSY = ['czeka', 'umowione', 'zrobione'];
+const RE_WIZYTA = /^\d{4}-\d\d-\d\dT\d\d:\d\d$/;
+// pola wizyty z zapytania; p — dane z aplikacji, o — dotychczasowy wiersz ({} dla nowego)
+function wizytaPola_(p, o) {
+  const pola = {};
+  if (p.status !== undefined) pola.status = WIZ_STATUSY.indexOf(p.status) >= 0 ? p.status : '';
+  if (p.do_kogo !== undefined) pola.do_kogo = String(p.do_kogo).trim().slice(0, 100);
+  if (p.adres !== undefined) pola.adres = String(p.adres).trim().slice(0, 160);
+  if (p.telefon !== undefined) pola.telefon = String(p.telefon).replace(/[^\d+ ()-]/g, '').trim().slice(0, 30);
+  if (p.wizyta !== undefined) pola.wizyta = RE_WIZYTA.test(String(p.wizyta)) ? String(p.wizyta) : '';
+  const w = pola.wizyta !== undefined ? pola.wizyta : tekstDaty_(o.wizyta).slice(0, 16);
+  const st = pola.status !== undefined ? pola.status : String(o.status || '');
+  if (w && (st === '' || st === 'czeka')) pola.status = 'umowione';
+  if (!w && st === 'umowione' && (pola.wizyta !== undefined || pola.status !== undefined)) pola.status = 'czeka';   // datę zdjęto — znów czeka na zapis
+  return pola;
+}
+// wizyta ⇄ wydarzenie w kalendarzu rodziny (id wiz_<dokument>): tworzy, przesuwa albo usuwa; przypomnienie 2 godziny przed, dzień wcześniej wchodzi do wieczornej wiadomości
+function wizytaSync_(d, ja, bylaWizyta) {
+  const eid = 'wiz_' + d.id, ev = znajdz_('Wydarzenia', eid), w = tekstDaty_(d.wizyta).slice(0, 16);
+  if (!RE_WIZYTA.test(w)) {
+    if (ev) { ark_('Wydarzenia').deleteRow(ev._w); try { zmien_('Dokumenty', d, { wydarzenie: '' }); } catch (e) {} }
+    return;
+  }
+  const kto = (d.wlasciciel === 'rodzina' ? rodzice_() : [d.wlasciciel]).concat([ja.id]).filter((x, i, a) => x && a.indexOf(x) === i);
+  const tytul = ((d.do_kogo ? d.do_kogo : 'Визит') + ' — ' + d.tytul).slice(0, 110), miejsce = String(d.adres || '');
+  if (ev) {
+    const zmienione = tekstDaty_(ev.start).slice(0, 16) !== w;
+    zmien_('Wydarzenia', ev, { tytul: tytul, start: w, kto: kto.join(','), miejsce: miejsce, przyp: 120, przyp_wyslane: zmienione ? '' : ev.przyp_wyslane });
+  } else {
+    dodaj_('Wydarzenia', { id: eid, tytul: tytul, start: w, kto: kto.join(','), miejsce: miejsce, przyp: 120, przyp_wyslane: '', autor: ja.id, czas: teraz_() });
+    try { zmien_('Dokumenty', d, { wydarzenie: eid }); } catch (e) {}
+  }
+  if (w !== String(bylaWizyta || '').slice(0, 16)) {
+    const komu = kto.filter(x => x !== ja.id);
+    if (komu.length) powiadom_(komu, '📅 ' + ja.imie + ' записал(а): ' + tytul + ', ' + ladnaData_(w), false);
+  }
+}
 function dokumentyDla_(ja) {
   const role = {}; wiersze_('Ludzie').forEach(o => role[o.id] = o.rola);
   return wiersze_('Dokumenty').filter(d => widziDok_(ja, d, role)).map(d => ({ id: String(d.id), tytul: d.tytul, kategoria: d.kategoria, wlasciciel: d.wlasciciel,
     auto: d.auto, widocznosc: d.widocznosc, mime: d.mime, nazwa_pliku: d.nazwa_pliku, rozmiar: Number(d.rozmiar) || 0, wazny_do: tekstDaty_(d.wazny_do).slice(0, 10),
-    sos: Number(d.sos) ? 1 : 0, notatka: d.notatka, od: d.od, czas: tekstDaty_(d.czas) })).sort((a, b) => a.czas < b.czas ? 1 : -1);
+    sos: Number(d.sos) ? 1 : 0, notatka: d.notatka, od: d.od, czas: tekstDaty_(d.czas),
+    status: String(d.status || ''), do_kogo: String(d.do_kogo || ''), adres: String(d.adres || ''), telefon: String(d.telefon || ''), wizyta: tekstDaty_(d.wizyta).slice(0, 16) })).sort((a, b) => a.czas < b.czas ? 1 : -1);
 }
 
 
@@ -993,6 +1048,8 @@ function podsumowanie_(kiedy) {
   const poz = wiersze_('Pozycje').filter(o => o.status !== 'zrobione' && !o.rodzic);
   const zakupyListy = wiersze_('Listy').filter(l => Number(l.zakupy)).map(l => l.id);
   const zak = poz.filter(o => zakupyListy.indexOf(o.lista) >= 0).length;
+  const poniedzialek = Utilities.formatDate(new Date(), TZ, 'u') === '1', roleMap = {};
+  wiersze_('Ludzie').forEach(o => roleMap[o.id] = o.rola);
   wiersze_('Ludzie').forEach(c => {
     const moje = w => listaKto_(w.kto).indexOf(c.id) >= 0;
     const mojePoz = poz.filter(o => o.dla === c.id || (!o.dla && o.lista === 'moje' && o.od === c.id));
@@ -1005,6 +1062,10 @@ function podsumowanie_(kiedy) {
       if (zak) linie.push('В списке покупок: ' + zak);
       const kon = konczaceSie_(c);
       if (kon.length) linie.push('Документы: ' + kon.join('; '));
+      if (poniedzialek) {
+        const czek = wiersze_('Dokumenty').filter(d => d.status === 'czeka' && (d.wlasciciel === c.id || (c.rola === 'rodzic' && widziDok_(c, d, roleMap))));
+        if (czek.length) linie.push('Ждут записи: ' + czek.map(d => d.tytul + (tekstDaty_(d.wazny_do).slice(0, 10) ? ' (до ' + ladnaData_(tekstDaty_(d.wazny_do).slice(0, 10)) + ')' : '')).slice(0, 5).join('; '));
+      }
     } else {
       const zakres = niedziela ? 7 : 1;
       const d = wyd.filter(w => w.s.slice(0, 10) >= jutro && w.s.slice(0, 10) <= dzien_(plusDni_(zakres)) && moje(w));
