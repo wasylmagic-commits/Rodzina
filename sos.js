@@ -22,7 +22,7 @@
   function kartyAut() {
     const auta = D.auta || [];
     if (!auta.length) return '<div class="card"><div class="mute">Полисы машин не заполнены. ' + (D.ja.rola === 'rodzic' ? 'Ещё → Настройки → Машины.' : '') + '</div></div>';
-    return auta.map(a => '<div class="card"><h3>' + I('car', 1) + esc(a.nazwa) + (a.nr_rej ? ' <span class="mute">' + esc(a.nr_rej) + '</span>' : '') + '</h3>' +
+    return auta.map(a => '<div class="card"><h3>' + znaczekAuta(a) + esc(a.nazwa) + (a.nr_rej ? ' <span class="mute">' + esc(a.nr_rej) + '</span>' : '') + '</h3>' +
       '<div class="t">' + esc([a.ubezpieczyciel, a.polisa ? 'полис ' + a.polisa : ''].filter(Boolean).join(' · ') || 'страховая не указана') + '</div>' +
       (a.polisa_do ? '<div class="mute">действует до ' + esc(dataPl(a.polisa_do)) + '</div>' : '') + (a.ac ? '<div class="mute">' + esc(a.ac) + '</div>' : '') +
       ((a.tel_szkody || a.tel_assistance) ? '<div class="dwa" style="margin-top:10px">' + (a.tel_szkody ? tel(a.tel_szkody, 'Страховая') : '<span></span>') + (a.tel_assistance ? tel(a.tel_assistance, 'Assistance', 'btn-j') : '') + '</div>' : '') +

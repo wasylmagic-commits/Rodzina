@@ -26,7 +26,9 @@
     const wsz = D.dokumenty || [];
     let h = '<div class="dwa" style="margin-bottom:14px">' +
       '<label class="btn"><input type="file" accept="image/*" capture="environment" hidden onchange="dokZdjecia(this,1)">' + I('camera', 1) + 'Сфотографировать</label>' +
-      '<label class="btn btn-j"><input type="file" accept="image/*,application/pdf" multiple hidden onchange="dokZdjecia(this,0)">' + I('upload', 1) + 'Загрузить</label></div>';
+      '<label class="btn btn-j"><input type="file" accept="image/*,application/pdf" multiple hidden onchange="dokZdjecia(this,0)">' + I('upload', 1) + 'Загрузить</label></div>' +
+      '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="skanerOkno()">' + I('note', 1) + 'Сканер — ровнее и чётче</button>' +
+      (D.ja.admin ? '<button class="btn2 szer" style="margin:-4px 0 14px" onclick="wejscieTeraz()">' + I('id', 1) + 'Разобрать «Wejscie»</button>' : '');
     if (wsz.length > 6) h += '<input type="search" placeholder="Поиск по документам" value="' + esc(SZUKAJ) + '" oninput="dokSzukaj(this.value)">';
     const licz = k => wsz.filter(d => d.kategoria === k).length;
     h += '<div class="seg">' + [['wszystkie', 'Все']].concat(kategorie().filter(k => licz(k[0])).map(k => [k[0], k[1]])).map(([k, n]) =>
@@ -142,7 +144,36 @@
   };
 
   /* ---------- nowy dokument: zdjęcia/strony → format → opis → wysyłka ---------- */
-  window.dokZdjecia = async function (inp, zAparatu) {
+  // okno „Сканер”: сканируем в Google Drive (ровнее и чётче нашего) или в CamScanner → «Поделиться» → Семья
+  window.skanerOkno = () => ark('<h4>' + I('note', 1) + ' Сканер</h4>' +
+    '<div class="mute" style="margin:2px 0 12px">Лист ровнее и чётче получается в готовых сканерах. Наш встроенный остаётся для быстрых снимков («Сфотографировать»).</div>' +
+    '<div class="t" style="font-weight:600">Google Drive</div><div class="mute" style="margin:2px 0 8px">«+» → «Сканировать» → сохрани PDF в папку <b>Rodzina_Dokumenty / Wejscie</b>. Я сам разложу файл (раз в 15 минут или кнопкой «Разобрать Wejscie»).</div>' +
+    '<a class="btn szer" href="intent://#Intent;package=com.google.android.apps.docs;end">' + I('upload', 1) + ' Открыть Google Drive</a>' +
+    '<div class="t" style="font-weight:600;margin-top:16px">CamScanner</div><div class="mute" style="margin:2px 0 8px">Готовый скан → «Поделиться» → <b>Семья</b>. Документ откроется здесь, дальше как обычно: название, чей, срок. Пункт «Семья» появляется после обновления приложения (иногда нужно пару дней или переустановить иконку).</div>' +
+    '<a class="btn2 szer" href="intent://#Intent;package=com.intsig.camscanner;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.intsig.camscanner;end">' + I('camera', 1) + 'Открыть CamScanner</a>' +
+    '<div class="ab"><button class="btn2" onclick="arkZamknij()">Закрыть</button></div>');
+
+  // „Поделиться → Семья” (share_target в manifest.json, sw.js кладёт файл в cache „udostepnione”) → тот же путь, что у «Загрузить»
+  window.dokUdostWczytaj = async () => {
+    if (!/[?&]udost=1/.test(location.search) || !('caches' in window)) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    const pliki = [];
+    try {
+      const c = await caches.open('udostepnione');
+      for (const req of await c.keys()) {
+        const res = await c.match(req); if (!res) continue;
+        const blob = await res.blob(), nazwa = decodeURIComponent(res.headers.get('X-Nazwa') || '') || 'plik';
+        pliki.push(new File([blob], nazwa, { type: blob.type || '' })); await c.delete(req);
+      }
+    } catch (e) {}
+    if (!pliki.length) return;
+    let proby = 0;
+    const start = () => { if (D && D.kategorie) { go('dok'); dokZdjecia({ files: pliki, value: '' }, 0, true); } else if (++proby < 40) setTimeout(start, 400); };
+    start();
+  };
+  window.addEventListener('load', () => setTimeout(window.dokUdostWczytaj, 500));
+
+  window.dokZdjecia = async function (inp, zAparatu, bezSkanu) {
     const fs = Array.from(inp.files || []); inp.value = ''; if (!fs.length) return;
     const pdf = fs.find(f => /pdf/i.test(f.type) || /\.pdf$/i.test(f.name));
     if (pdf) {
@@ -150,13 +181,13 @@
       return dokOpisNowy();
     }
     NOWY = { strony: [], format: '' };
-    await dodajStrony(fs);
+    await dodajStrony(fs, bezSkanu);
   };
-  async function dodajStrony(fs) {
+  async function dodajStrony(fs, bezSkanu) {
     for (const f of fs) {
       try {
         const z = await zdjecieB64(f, 1800); const st = { b64: z.b64, orig: z.b64, w: z.w, h: z.h };
-        if (window.skanDokument) {
+        if (window.skanDokument && !bezSkanu) {   // zdjęcia z zewnętrznego skanera są już równe – nie psujemy ich drugi raz
           toast('Выравниваю и чищу лист…');
           try { const sk = await window.skanDokument(z.b64); st.skan = sk.b64; st.b64 = sk.b64; st.popr = true; if (!sk.kadr) toast('Края листа не нашёл — улучшил только контраст'); }
           catch (e) { toast('Сканер не загрузился — оставляю фото как есть'); }

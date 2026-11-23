@@ -19,8 +19,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.4.1';
-const SCHEMAT = '4';
+const WERSJA = '0.4.2';
+const SCHEMAT = '5';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -34,7 +34,7 @@ const ARKUSZE = {
   Ustawienia:    ['klucz', 'wartosc', 'opis'],
   Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas'],
   Dziennik:      ['czas', 'zrodlo', 'plik', 'status', 'odpowiedz'],
-  Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas']
+  Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas', 'kolor']
 };
 
 // kategorie dokumentów: [klucz, nazwa w aplikacji, folder na Drive, kto widzi domyślnie]
@@ -376,6 +376,7 @@ const API = {
     ['nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka']
       .forEach(k => { if (p[k] !== undefined) pola[k] = String(p[k]).trim().slice(0, 300); });
     if (pola.nr_rej) pola.nr_rej = pola.nr_rej.toUpperCase();
+    if (p.kolor !== undefined) pola.kolor = /^#[0-9a-fA-F]{6}$/.test(String(p.kolor)) ? String(p.kolor).toLowerCase() : '';   // kolor znaczka marki
     const o = p.id ? znajdz_('Auta', p.id) : null;
     if (o) zmien_('Auta', o, Object.assign(pola, { czas: teraz_() }));
     else dodaj_('Auta', Object.assign(pola, { id: idKlienta_(p.id, 'Auta'), czas: teraz_() }));

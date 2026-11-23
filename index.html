@@ -386,6 +386,32 @@
   .podpC{width:100%;aspect-ratio:900/360;background:#fff;border-radius:14px;touch-action:none;box-shadow:inset 0 0 0 1px var(--line)}
   .zad .t{font-size:18px;font-weight:600}
   .dwa .btn,.dwa .btn2{min-width:0;padding:0 12px;white-space:nowrap}
+  /* ===== 0.5.0 (23.11.2026): jak w Serwis myjni – zaznaczanie, przesuwanie zakładek; animacje list ===== */
+  html,body{overflow-x:clip;max-width:100%}
+  main{overflow-x:clip;touch-action:pan-y pinch-zoom}
+  #bnav{will-change:transform;transform:translateZ(0);contain:layout style}
+  body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  input,textarea,select,[contenteditable],.sel,.sel *{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+  /* okno od dołu unosi się nad klawiaturą (zmienna --kb ustawia skrypt z visualViewport) */
+  #ark .ar{bottom:calc(8px + env(safe-area-inset-bottom) + var(--kb,0px));max-height:calc(92vh - env(safe-area-inset-top) - var(--kb,0px));overscroll-behavior:contain}
+  /* odhaczanie: kółko → przekreślenie → pauza → wiersz zwija się */
+  .row.poz .t{text-decoration:none}
+  .row.poz.done .t{text-decoration:none;opacity:1}
+  .tx{background:linear-gradient(currentColor,currentColor) no-repeat 0 62%/0 2px;-webkit-box-decoration-break:clone;box-decoration-break:clone;transition:background-size .3s ease-out,opacity .3s}
+  .row.poz.done .tx,.row.poz.ok .tx{background-size:100% 2px;opacity:.5}
+  .row.poz.ok .okr-chk{background:var(--acc);border-color:var(--acc);color:#fff;transform:scale(1.14)}
+  .row.poz .okr-chk{transition:background .2s,border-color .2s,color .2s,transform .3s var(--spring)}
+  .row.poz.znika{overflow:hidden;min-height:0;opacity:0;border-top-color:transparent;transition:height .34s var(--ease),padding .34s var(--ease),opacity .26s ease-in,border-color .2s}
+  .row.poz.nowy{animation:wjazd .4s var(--ease) both}
+  @keyframes wjazd{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+  .bezanim *,.bezanim *::before,.bezanim *::after{animation:none!important;transition:none!important}
+  /* znaczek marki auta: litery + kolor wybrany przez człowieka */
+  .znaczek{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:22px;padding:0 7px;border-radius:7px;font:800 11px var(--fr);letter-spacing:.4px;margin-right:8px;vertical-align:-4px;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  .av.znak{font:800 12px var(--fr);letter-spacing:.3px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 3px 10px rgba(0,0,0,.18)}
+  .kolory-aut{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:2px}
+  .kol-a{width:34px;height:34px;border-radius:50%;border:0;padding:0;background:var(--c);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 6px rgba(0,0,0,.2)}
+  .kol-a.on{box-shadow:0 0 0 3px var(--solid),0 0 0 5px var(--c)}
+  .kol-a.wl{background:conic-gradient(#f33,#fb3,#3c6,#3bf,#85f,#f3a,#f33);color:transparent}
 </style>
 </head>
 <body>
@@ -411,10 +437,10 @@
  *      PDF i schowek w telefonie (pdf.js), skaner z Serwis myjni (skan.js + opencv.js), zadania dla dziecka na „Сегодня”.
  * Wygląd i elementy sterujące jak w Serwis myjni (iOS: arkusze od dołu, segmenty, pasek kart, toast), akcent fioletowy.
  * Interfejs po rosyjsku; nazwy w kodzie po polsku. Jedna aplikacja dla wielu rodzin: adres serwera (u) i klucz osoby (k) przychodzą w linku.
- * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
+ * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.4.0';
+const WERSJA_APLIKACJI = '0.5.0';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -525,8 +551,14 @@ const zapiszCache = () => { try { LS.set('cacheD', JSON.stringify(D)); } catch (
 // kolejka zmian: ekran zmienia się od razu (lokalnie), serwer dostaje zmiany po kolei; stan z serwera przyjmujemy, gdy kolejka pusta
 const KOLEJKA = [];
 let KOLEJKA_TRWA = false;
+// 0.5.0: gdy wiersz właśnie się animuje (odhaczenie), przerysowanie ekranu czeka, aż animacja się skończy
+let HOLD = 0, HOLD_P = false;
+function renderL() { if (HOLD > 0) HOLD_P = true; else render(); }
+function puscRender() { HOLD = Math.max(0, HOLD - 1); if (!HOLD && HOLD_P) { HOLD_P = false; render(); } }
+const NOWE = new Set();
+const noweId = x => (NOWE.add(x), x);
 function zmiana(akcja, par, lokalnie, ok) {
-  if (lokalnie) { try { lokalnie(D); } catch (e) { console.error(e); } zapiszCache(); render(); }
+  if (lokalnie) { try { lokalnie(D); } catch (e) { console.error(e); } zapiszCache(); renderL(); }
   KOLEJKA.push({ akcja, par, ok });
   kolejka();
 }
@@ -548,7 +580,7 @@ function ikonaOdsw(t) { const b = document.getElementById('odsw'); if (b) b.clas
 function przyjmij(w) {
   const bylo = JSON.stringify(D);
   D = w; zapiszCache();
-  if (bylo !== JSON.stringify(D)) { if (!document.getElementById('ark').classList.contains('on')) render(); else odswiezArkusz(); }
+  if (bylo !== JSON.stringify(D)) { if (!document.getElementById('ark').classList.contains('on')) renderL(); else odswiezArkusz(); }
 }
 function load(reczne) {
   if (!K || !API) { document.getElementById('main').innerHTML = '<div class="lt"><h1>Семья</h1></div><div class="card"><h3>' + I('alert', 1) + 'Нет доступа</h3>Открой приложение по своей личной ссылке. Потом — всегда с иконки.</div>'; return; }
@@ -590,7 +622,7 @@ function render() {
   m.classList.remove('anim');
   m.innerHTML = lt + ({ dzis: wDzis, kal: wKal, listy: wListy, dok: window.wDok, sos: window.wSos, wiecej: wWiecej }[TAB] || wDzis)();
   if (ANIM) { void m.offsetWidth; m.classList.add('anim'); }
-  ANIM = false;
+  ANIM = false; NOWE.clear();
 }
 
 /* ---------- Сегодня ---------- */
@@ -793,20 +825,33 @@ function wierszPoz(o, zLista) {
   if (o.dla && o.dla !== D.ja.id) meta.push(I('user', 1) + esc(imie(o.dla)));
   if (o.przyp) meta.push(I('clock', 1) + esc(o.przyp.slice(11, 16)));
   if (o.notatka) meta.push(I('note', 1));
-  return '<div class="row poz' + (zr ? ' done' : '') + '"><button class="okr-chk" role="checkbox" aria-checked="' + zr + '" aria-label="Сделано" onclick="klik(\'' + jsq(o.id) + '\')">' + I('check', 1) + '</button>' +
-    '<div class="g" onclick="edytuj(\'' + jsq(o.id) + '\')"><div class="t">' + esc(o.tytul) + '</div>' + (meta.length ? '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div>' : '') + '</div></div>';
+  return '<div class="row poz' + (zr ? ' done' : '') + (NOWE.has(o.id) ? ' nowy' : '') + '" data-id="' + esc(o.id) + '"><button class="okr-chk" role="checkbox" aria-checked="' + zr + '" aria-label="Сделано" onclick="klik(\'' + jsq(o.id) + '\')">' + I('check', 1) + '</button>' +
+    '<div class="g" onclick="edytuj(\'' + jsq(o.id) + '\')"><div class="t"><span class="tx">' + esc(o.tytul) + '</span></div>' + (meta.length ? '<div class="mute meta">' + meta.join('<i class="kropka"></i>') + '</div>' : '') + '</div></div>';
 }
 function klik(id) {
   const o = (D.pozycje || []).find(x => x.id === id); if (!o) return;
   const zr = o.status !== 'zrobione';
-  zmiana('pozKlik', { id: id, zrobione: zr ? '1' : '0' }, d => { const x = d.pozycje.find(y => y.id === id); if (x) x.status = zr ? 'zrobione' : 'nowe'; });
-  if (document.getElementById('ark').classList.contains('on')) odswiezArkusz();
+  const wykonaj = () => zmiana('pozKlik', { id: id, zrobione: zr ? '1' : '0' }, d => { const x = d.pozycje.find(y => y.id === id); if (x) x.status = zr ? 'zrobione' : 'nowe'; });
+  const arkOtwarty = document.getElementById('ark').classList.contains('on');
+  const el = arkOtwarty ? null : document.querySelector('#main .row.poz[data-id="' + id + '"]');
+  if (!el || LS.get('anim') === '0') { wykonaj(); if (arkOtwarty) odswiezArkusz(); return; }
+  // 1) kółko wypełnia się i tekst się przekreśla, 2) chwila na zauważenie, 3) wiersz płynnie zwija się i znika
+  HOLD++;
+  if (zr) el.classList.add('ok'); else el.classList.remove('done');
+  wykonaj();
+  const czekaj = zr ? 560 : 280;
+  setTimeout(() => {
+    if (!el.isConnected) return puscRender();
+    el.style.height = el.offsetHeight + 'px'; void el.offsetWidth;
+    el.classList.add('znika'); el.style.height = '0px'; el.style.paddingTop = '0px'; el.style.paddingBottom = '0px';
+    setTimeout(puscRender, 360);
+  }, czekaj);
 }
 function dodajPoz() {
   const e = document.getElementById('nowa'), v = e.value.trim(); if (!v) return;
   const lista = LISTA, zak = czyZakupy(lista), id = nowyId();
   const tytuly = zak ? v.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) : [v];
-  zmiana('pozDodaj', { lista: lista, tytul: v, id: id }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: i ? nowyId() : id, lista: lista, tytul: t, rodzic: '',
+  zmiana('pozDodaj', { lista: lista, tytul: v, id: id }, d => tytuly.forEach((t, i) => d.pozycje.push({ id: noweId(i ? nowyId() : id), lista: lista, tytul: t, rodzic: '',
     dla: lista === 'moje' ? d.ja.id : '', od: d.ja.id, termin: '', przyp: '', dzial: zak ? 'inne' : '', notatka: '', status: 'nowe', kolejnosc: Date.now() + i })));
   setTimeout(() => { const n = document.getElementById('nowa'); if (n) n.focus(); }, 30);
 }
@@ -932,24 +977,26 @@ function usunPoz(id) {
 function wWiecej() {
   if (PODSTR === 'akt') return wAktualizacja();
   if (PODSTR === 'ust') return wUstawienia();
-  if (PODSTR === 'info') return naglowek('О приложении', '') + '<div class="card"><div class="row"><div class="g">Приложение</div><b>' + WERSJA_APLIKACJI + '</b></div><div class="row"><div class="g">Сервер семьи</div><b>' + esc(D.wersja || '0.1') + '</b></div>' +
-    '<div class="row"><div class="g">Ты</div><b>' + esc(D.ja.imie) + '</b></div></div>';
-  const kafle = [['gear', 'Настройки', 'цвет, фон, мои данные', 'podstrona(\'ust\')'], ['shield', 'SOS', 'авария, бланк ДТП', 'sosOtworz()']];
-  if (window.FB && 'Notification' in window) kafle.push(['bell', D.ja.push ? 'Уведомления' : 'Включить уведомления', D.ja.push ? 'включены' : 'пуши на телефон', 'pushWlacz()']);
-  if (window.FB && D.ja.push) kafle.push(['bell', 'Проверить уведомления', 'пришлю пробное', 'pushTest()']);
-  if (D.seriaKto) kafle.push(['flame', 'Серия', D.seria.dni + ' дн. без пропусков', 'go(\'dzis\')']);
-  if (D.ja.admin) kafle.push(['id', 'Разобрать «Wejscie»', 'файлы из папки на Drive', 'wejscieTeraz()']);
-  if (D.ja.admin) kafle.push(['update', 'Обновление системы', 'проверить и установить', 'podstrona(\'akt\')']);
-  kafle.push(['info', 'О приложении', 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']);
+  if (PODSTR === 'info') return wSystem();
+  // 0.5.0: porządek – tylko to, czego nie ma gdzie indziej. SOS jest w nagłówku, seria na «Сегодня», Wejscie w «Документы», powiadomienia w Настройки.
+  const kafle = [['gear', 'Настройки', 'цвет, фон, уведомления, мои данные, машины', 'podstrona(\'ust\')'],
+    ['info', 'Система', D.ja.admin ? 'версия и обновления' : 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']];
   return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';
 }
+function wSystem() {
+  let h = naglowek('Система', 'версия ' + WERSJA_APLIKACJI);
+  h += '<div class="card"><div class="row"><div class="g">Приложение</div><b>' + WERSJA_APLIKACJI + '</b></div><div class="row"><div class="g">Сервер семьи</div><b>' + esc(D.wersja || '0.1') + '</b></div>' +
+    '<div class="row"><div class="g">Ты</div><b>' + esc(D.ja.imie) + '</b></div></div>';
+  if (D.ja.admin) h += '<button class="btn szer" onclick="podstrona(\'akt\')">' + I('update', 1) + ' Обновление системы</button>';
+  return h;
+}
 function podstrona(p) { PODSTR = p; ANIM = true; render(); window.scrollTo(0, 0); }
-function naglowek(t, sub) {
-  return '<div class="phead"><button class="ib" onclick="podstrona(\'\')" aria-label="Назад">' + I('back') + '</button><div><b>' + esc(t) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div></div>';
+function naglowek(t, sub, wroc) {
+  return '<div class="phead"><button class="ib" onclick="podstrona(\'' + (wroc || '') + '\')" aria-label="Назад">' + I('back') + '</button><div><b>' + esc(t) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div></div>';
 }
 let AKT = null;
 function wAktualizacja() {
-  let h = naglowek('Обновление системы', 'сервер семьи: версия ' + (D.wersja || '0.1'));
+  let h = naglowek('Обновление системы', 'сервер семьи: версия ' + (D.wersja || '0.1'), 'info');
   if (!D.listy) return h + '<div class="card">Сервер ещё старый (0.1): обновления через приложение заработают после первой установки.</div>';
   if (!AKT) h += '<div class="card"><div class="mute" style="margin-bottom:12px">Обновления готовит Claude и кладёт в папку обновлений. Здесь видно, что поменяется, и ты решаешь, ставить или нет.</div><button class="btn szer" onclick="aktSprawdz()">' + I('refresh', 1) + ' Проверить обновления</button></div>';
   else if (AKT.trwa) h += '<div class="card"><div class="empty mala">' + esc(AKT.trwa) + '</div></div>';
@@ -986,6 +1033,7 @@ function aktCofnij(kopia) {
 /* ---------- arkusz od dołu ---------- */
 function ark(html, bezAnimacji) {
   const a = document.getElementById('ark');
+  const ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !a.contains(ae)) ae.blur();   // klawiatura nie zasłania okna z pytaniem
   a.innerHTML = '<div class="tlo" onclick="ED=null;arkZamknij()"></div><div class="ar' + (bezAnimacji ? ' stoi' : '') + '">' + html + '</div>';
   a.classList.add('on');
 }
@@ -1008,6 +1056,7 @@ function arkZamknij() {
 let PROP = null;
 function szybko() {
   const e = document.getElementById('szt'), t = e.value.trim(); if (!t) return;
+  const ph = e.placeholder; e.blur(); e.disabled = true; e.placeholder = 'Разбираю…';
   ikonaOdsw(true);
   api('szybko', { tekst: t }).then(p => {
     PROP = p;
@@ -1016,7 +1065,7 @@ function szybko() {
     const typ = p.typ === 'wydarzenie' ? 'В календарь' : 'В список «' + nazwaListy(p.lista || 'moje') + '»';
     ark('<h4>' + esc(typ) + '</h4><div class="t" style="font-size:19px;margin:6px 0">' + esc(opis) + '</div><div class="mute">Верно?</div>' +
       '<div class="ab"><button class="btn" onclick="szybkoTak()">' + I('check', 1) + ' Да, сохранить</button><button class="btn2" onclick="szybkoPopraw()">Поправить</button></div>');
-  }).catch(err => toast(err.message)).finally(() => ikonaOdsw(false));
+  }).catch(err => toast(err.message)).finally(() => { ikonaOdsw(false); const x = document.getElementById('szt'); if (x) { x.disabled = false; x.placeholder = ph; } });
 }
 function szybkoTak() {
   const p = PROP, e = document.getElementById('szt'); arkZamknij(); if (e) e.value = '';
@@ -1084,6 +1133,85 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !d
 nav();
 load();
 pushSluchaj();
+/* ---------- 0.5.0: przesuń palcem w lewo/prawo = sąsiednia zakładka dolnego paska (ustawienia 1:1 z Serwis myjni, 16.11.2026) ----------
+ * Tylko na głównych zakładkach (nie w podstronach, nie w SOS), nie przy krawędziach (tam gest systemu), nie na polach tekstowych i paskach przewijanych w bok.
+ * Ekran lekko jedzie za palcem; przełącza po ~7% szerokości albo szybkim smyrgnięciu. Na pozycjach list przesuwania nie ma. */
+(function () {
+  const m = document.getElementById('main'); let x0 = null, y0 = 0, t0 = 0, dx = 0, kier = 0;
+  const glowna = () => TABS.some(t => t[0] === TAB) && !PODSTR;
+  const lekki = () => LS.get('anim') === '0';
+  const blok = el => { for (; el && el !== m; el = el.parentElement) {
+      if (/^(INPUT|TEXTAREA|SELECT|CANVAS|VIDEO)$/.test(el.tagName) || el.isContentEditable || el.dataset.noswipe != null) return true;
+      if (el.scrollWidth > el.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true; }
+    return false; };
+  m.addEventListener('touchstart', e => {
+    x0 = null; if (e.touches.length !== 1 || !D || !glowna() || LS.get('swipe') === '0') return;
+    if (document.getElementById('ark').classList.contains('on')) return;
+    const t = e.touches[0]; if (t.clientX < 24 || t.clientX > window.innerWidth - 24 || blok(e.target)) return;
+    x0 = t.clientX; y0 = t.clientY; t0 = e.timeStamp; dx = 0; kier = 0;
+  }, { passive: true });
+  m.addEventListener('touchmove', e => {
+    if (x0 == null) return; const t = e.touches[0], ax = t.clientX - x0, ay = t.clientY - y0;
+    if (!kier) { if (Math.abs(ax) < 10 && Math.abs(ay) < 10) return; kier = Math.abs(ax) > Math.abs(ay) * 1.25 ? 1 : -1; if (kier < 0) { x0 = null; return; } m.style.transition = 'none'; }
+    dx = ax; const i = TABS.findIndex(x => x[0] === TAB), kraniec = (dx > 0 && i === 0) || (dx < 0 && i === TABS.length - 1);
+    if (!lekki()) m.style.transform = 'translate3d(' + (dx * (kraniec ? 0.12 : 0.35)).toFixed(1) + 'px,0,0)';
+  }, { passive: true });
+  const koniec = e => {
+    if (x0 == null || kier !== 1) { x0 = null; return; } x0 = null;
+    const szybko = Math.abs(dx) > 18 && Math.abs(dx) / Math.max(1, e.timeStamp - t0) > 0.3;
+    const i = TABS.findIndex(x => x[0] === TAB), j = i + (dx < 0 ? 1 : -1), w = window.innerWidth;
+    if (!((Math.abs(dx) > w * 0.07 || szybko) && j >= 0 && j < TABS.length)) {   // za krótko: wróć na miejsce
+      m.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'; m.style.transform = '';
+      setTimeout(() => m.style.transition = '', 240); return; }
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch (er) {}
+    // jeden ruch na jednym elemencie: stary ekran wyjeżdża i gaśnie → podmiana treści → nowy wjeżdża z drugiej strony
+    const s0 = dx < 0 ? -1 : 1;
+    if (lekki()) { m.style.transition = 'none'; m.style.transform = ''; go(TABS[j][0]); return; }
+    m.style.transition = 'transform .12s ease-in, opacity .12s ease-in'; m.style.transform = 'translate3d(' + (s0 * w * 0.2) + 'px,0,0)'; m.style.opacity = '0';
+    setTimeout(() => {
+      m.style.transition = 'none'; go(TABS[j][0]); m.classList.remove('anim');
+      m.style.transform = 'translate3d(' + (-s0 * w * 0.12) + 'px,0,0)'; void m.offsetWidth;
+      m.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s ease-out'; m.style.transform = ''; m.style.opacity = '';
+      setTimeout(() => m.style.transition = '', 260);
+    }, 125);
+  };
+  m.addEventListener('touchend', koniec, { passive: true });
+  m.addEventListener('touchcancel', () => { x0 = null; m.style.transform = ''; }, { passive: true });
+})();
+/* ---------- 0.5.0: gest „wstecz” systemu Androida – jak w Serwis myjni ----------
+ * Zawsze jest jeden wpis „straż” w historii. Wstecz zamyka kolejno: okno na dole → ekran SOS → podstronę (Настройки, Система) → poprzednią zakładkę → «Сегодня».
+ * Na «Сегодня»: pierwszy gest pokazuje podpowiedź, drugi (w 2,5 s) wychodzi z aplikacji. */
+(function () {
+  const stos = []; let wyjscie = 0;
+  const go0 = go;
+  go = function (t) {
+    if (t !== TAB && !window.__wstecz && t !== 'sos' && TAB !== 'sos') { if (stos[stos.length - 1] === t) stos.pop(); else if (t === 'dzis') stos.length = 0; else stos.push(TAB); }
+    go0(t);
+  };
+  const straz = () => { try { history.pushState({ straz: 1 }, '', location.href); } catch (e) {} };
+  straz();
+  window.addEventListener('popstate', () => {
+    const ark = document.getElementById('ark');
+    if (wyjscie && Date.now() < wyjscie) { wyjscie = 0; history.back(); return; }
+    straz();
+    if (ark.classList.contains('on')) { ED = null; return arkZamknij(); }
+    window.__wstecz = true;
+    try {
+      if (TAB === 'sos' && window.sosWstecz) return sosWstecz();
+      if (PODSTR) return podstrona(PODSTR === 'akt' ? 'info' : '');
+      if (stos.length) return go(stos.pop());
+      if (TAB !== 'dzis') return go('dzis');
+    } finally { window.__wstecz = false; }
+    wyjscie = Date.now() + 2500; toast('Нажми «назад» ещё раз, чтобы выйти');
+  });
+})();
+/* okno od dołu nad klawiaturą: wysokość klawiatury z visualViewport → --kb */
+(function () {
+  const vv = window.visualViewport; if (!vv) return;
+  const ust = () => { const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)); document.documentElement.style.setProperty('--kb', (kb > 80 ? kb : 0) + 'px'); };
+  vv.addEventListener('resize', ust); vv.addEventListener('scroll', ust); ust();
+  document.addEventListener('contextmenu', e => { if (!e.target.closest('input,textarea,select,[contenteditable],.sel')) e.preventDefault(); });
+})();
 </script>
 </body>
 </html>

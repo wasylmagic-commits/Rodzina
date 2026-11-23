@@ -23,6 +23,7 @@
   function zastosujWyglad() {
     const r = document.documentElement, tryb = LSk('tryb'), k = KOLORY.find(x => x[0] === LSk('kolor')) || KOLORY[0];
     if (tryb) r.setAttribute('data-t', tryb); else r.removeAttribute('data-t');
+    r.classList.toggle('bezanim', LSk('anim') === '0');
     const ciemny = tryb === 'ciemny' || (!tryb && mq && mq.matches), acc = ciemny ? k[3] : k[2], g = k[4].split(',');
     r.style.setProperty('--acc', acc);
     r.style.setProperty('--acc2', rgba(acc, ciemny ? .2 : .12));
@@ -48,6 +49,28 @@
   }
   document.addEventListener('DOMContentLoaded', zastosujTlo);
 
+  window.ustSwipe = on => { LSk('swipe', on ? '1' : '0'); };
+  window.ustAnim = on => { LSk('anim', on ? '1' : '0'); zastosujWyglad(); };
+
+  // znaczek marki auta: litery marki + kolor, który wybiera człowiek (bez logo producentów)
+  const KOLORY_AUT = ['#6e4ff6', '#007aff', '#1f9d55', '#0e8f9c', '#d92f6a', '#d9680a', '#c0392b', '#4a5160', '#111111', '#b8860b'];
+  const SKROTY = { mercedes: 'MB', 'mercedes-benz': 'MB', volkswagen: 'VW', vw: 'VW', bmw: 'BMW', мерседес: 'MB', фольксваген: 'VW', форд: 'FORD' };
+  const literyMarki = a => {
+    const w = String((a.marka || a.nazwa || '')).trim().split(/[\s,]+/)[0].toLowerCase(); if (!w) return '';
+    return SKROTY[w] || (w.length <= 4 ? w.toUpperCase() : w.slice(0, 2).toUpperCase());
+  };
+  const kolorAuta = a => a.kolor || LSk('ak.' + a.id) || '';
+  window.znaczekAuta = (a, duzy) => {
+    const l = literyMarki(a), c = kolorAuta(a);
+    if (duzy) return '<div class="av znak"' + (c ? ' style="background:' + esc(c) + '"' : '') + '>' + (l ? esc(l) : I('car', 1)) + '</div>';
+    return '<span class="znaczek" style="background:' + esc(c || 'var(--acc)') + '">' + (l ? esc(l) : I('car', 1)) + '</span>';
+  };
+  window.autoKolor = c => {
+    const i = document.getElementById('au_kolor'); if (i) i.value = c;
+    document.querySelectorAll('#auKol .kol-a').forEach(b => b.classList.toggle('on', b.dataset.c === c));
+    const w = document.getElementById('auKolInp'); if (w) w.value = c;
+  };
+
   window.ustKolor = k => { LSk('kolor', k); zastosujWyglad(); render(); };
   window.ustTryb = t => { LSk('tryb', t); zastosujWyglad(); render(); };
   window.ustPrz = t => { LSk('tloPrz', t); zastosujWyglad(); render(); };
@@ -70,6 +93,12 @@
       (jestTlo ? '<button class="btn2" onclick="ustTloUsun()">' + I('x', 1) + 'Убрать</button>' : '') + '</div>' +
       (jestTlo ? '<label class="lb">Затемнение фото, чтобы текст читался</label><div class="seg">' + PRZYCIEMNIENIE.map(p => '<button class="' + (p[0] === prz ? 'on' : '') + '" onclick="ustPrz(\'' + p[0] + '\')">' + p[1] + '</button>').join('') + '</div>' : '') +
       '</div>';
+    if (window.FB && 'Notification' in window) h += '<div class="card"><h3>' + I('bell', 1) + 'Уведомления</h3><div class="row"><div class="g"><b>' + (D.ja.push ? 'Включены' : 'Выключены') + '</b><div class="mute">' +
+      (D.ja.push ? 'пуши приходят на этот телефон' : 'чтобы пуши приходили на этот телефон') + '</div></div>' + (D.ja.push ? '' : '<button class="btn" onclick="pushWlacz()">Включить</button>') + '</div>' +
+      (D.ja.push ? '<button class="btn2 szer" style="margin-top:8px" onclick="pushTest()">' + I('bell', 1) + 'Проверить — пришлю пробное</button>' : '') + '</div>';
+    h += '<div class="card"><h3>' + I('spark', 1) + 'Поведение</h3>' +
+      '<div class="row"><div class="g"><b>Листать вкладки свайпом</b><div class="mute">влево и вправо между нижними вкладками</div></div><input type="checkbox" aria-label="Листать вкладки свайпом"' + (LSk('swipe') === '0' ? '' : ' checked') + ' onchange="ustSwipe(this.checked)"></div>' +
+      '<div class="row"><div class="g"><b>Анимации</b><div class="mute">выключи, если телефон тормозит</div></div><input type="checkbox" aria-label="Анимации"' + (LSk('anim') === '0' ? '' : ' checked') + ' onchange="ustAnim(this.checked)"></div></div>';
     if (!D.moje) return h + '<div class="card"><div class="mute">Мои данные, машины и настройки семьи появятся после обновления сервера (Ещё → Обновление системы).</div></div>';
     const m = D.moje;
     h += '<div class="card"><h3>' + I('user', 1) + 'Мои данные</h3><div class="mute" style="margin-bottom:10px">Для SOS и бланка ДТП: подставятся сами, когда будет не до писанины. Телефон видит семья (кнопка «позвонить» в SOS).</div>' +
@@ -89,7 +118,7 @@
     }
     if (D.ja.rola === 'rodzic') {
       h += '<div class="card"><h3>' + I('car', 1) + 'Машины <span class="mute">полис и телефоны для SOS</span></h3>' +
-        ((D.auta || []).length ? D.auta.map(a => '<div class="row w" onclick="formAuto(\'' + jsq(a.id) + '\')"><div class="av">' + I('car', 1) + '</div><div class="g"><b>' + esc(a.nazwa) + '</b><div class="mute">' +
+        ((D.auta || []).length ? D.auta.map(a => '<div class="row w" onclick="formAuto(\'' + jsq(a.id) + '\')">' + znaczekAuta(a, 1) + '<div class="g"><b>' + esc(a.nazwa) + '</b><div class="mute">' +
           esc([a.nr_rej, a.ubezpieczyciel, a.polisa_do ? 'полис до ' + dataPl(a.polisa_do) : ''].filter(Boolean).join(' · ') || 'данные не заполнены') + '</div></div></div>').join('') : '<div class="empty mala">Машин пока нет</div>') +
         '<button class="btn2 szer" style="margin:10px 0 0" onclick="formAuto()">' + I('plus', 1) + 'Добавить машину</button></div>';
     }
@@ -115,12 +144,16 @@
     const a = (D.auta || []).find(x => x.id === id) || {};
     ark('<h4>' + (a.id ? esc(a.nazwa) : 'Новая машина') + '</h4>' + POLA_AUTA.map(([k, t, ph, typ]) =>
       '<label>' + t + '</label><input id="au_' + k + '" class="as-in"' + (typ ? ' type="' + typ + '"' : '') + ' value="' + esc(a[k] || '') + '" placeholder="' + esc(ph) + '">').join('') +
+      '<label>Значок марки — цвет заливки</label><div class="kolory-aut" id="auKol">' + KOLORY_AUT.map(c => '<button type="button" class="kol-a' + (c === kolorAuta(a) ? ' on' : '') + '" data-c="' + c + '" style="--c:' + c + '" onclick="autoKolor(\'' + c + '\')" aria-label="цвет ' + c + '"></button>').join('') +
+      '<button type="button" class="kol-a wl" onclick="document.getElementById(\'auKolInp\').click()" aria-label="свой цвет">.</button><input type="color" id="auKolInp" value="' + esc(kolorAuta(a) || '#6e4ff6') + '" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" onchange="autoKolor(this.value)"></div>' +
+      '<input type="hidden" id="au_kolor" value="' + esc(kolorAuta(a)) + '">' +
       '<div class="ab"><button class="btn" onclick="autoZapisz(\'' + jsq(a.id || '') + '\')">' + I('check', 1) + ' Сохранить</button>' +
       (a.id ? '<button class="btn2" onclick="autoUsunPytaj(\'' + jsq(a.id) + '\')">' + I('trash', 1) + 'Удалить</button>' : '<button class="btn2" onclick="arkZamknij()">Отмена</button>') + '</div>');
   };
   window.autoZapisz = id => {
     const p = { id: id || nowyId() }; POLA_AUTA.forEach(([k]) => p[k] = document.getElementById('au_' + k).value.trim());
     if (!p.nazwa) return toast('Нужно название');
+    p.kolor = (document.getElementById('au_kolor') || {}).value || ''; LSk('ak.' + p.id, p.kolor);   // także w telefonie: działa, zanim serwer dostanie łatkę 0.4.2
     arkZamknij();
     zmiana('autoZapisz', p, d => { d.auta = d.auta || []; const o = d.auta.find(x => x.id === p.id); if (o) Object.assign(o, p); else d.auta.push(p); }, 'Сохранено');
   };
