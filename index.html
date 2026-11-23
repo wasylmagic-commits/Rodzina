@@ -395,6 +395,7 @@
     <h1 id="ct">Семья</h1>
     <button class="sosb" onclick="sosOtworz()" aria-label="SOS">SOS</button>
     <button class="ib" onclick="load(true)" aria-label="Обновить" id="odsw"></button>
+    <button class="ib" onclick="pwOtworz()" aria-label="Сообщения" id="pwb" style="position:relative"></button>
   </div>
 </header>
 <main id="main"><div class="empty">Загружаю…</div></main>
@@ -413,7 +414,7 @@
  * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.3.2';
+const WERSJA_APLIKACJI = '0.3.3';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -583,6 +584,7 @@ function render() {
   if (TAB === 'sos' && !window.wSos) TAB = 'dzis';
   const tytul = TAB === 'dzis' ? 'Привет, ' + D.ja.imie : TAB === 'sos' ? 'SOS' : (TABS.find(t => t[0] === TAB) || [, , ''])[2];
   document.getElementById('ct').textContent = PODSTR || TAB === 'sos' ? '' : tytul;
+  pwOdswiez();
   const pod = TAB === 'dzis' ? new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }) : (D.rodzina && D.rodzina.nazwa) || 'Семья';
   const lt = PODSTR || TAB === 'sos' ? '' : '<div class="lt"><small>' + esc(pod) + '</small><h1>' + esc(tytul) + '</h1></div>';
   m.classList.remove('anim');
@@ -628,7 +630,7 @@ function wDzis() {
     });
   }
   const pw = D.powiadomienia.slice(0, 12);
-  h += '<div class="card"><h3>' + I('bell', 1) + 'Сообщения' + (pw.some(p => p.status === 'nowe') ? '<button class="btn2 mal" onclick="przeczytane()">прочитал</button>' : '') + '</h3>' +
+  h += '<div class="card" id="pwkarta"><h3>' + I('bell', 1) + 'Сообщения' + (pw.some(p => p.status === 'nowe') ? '<button class="btn2 mal" onclick="przeczytane()">прочитал</button>' : '') + '</h3>' +
     (pw.length ? pw.map(p => '<div class="row pw ' + p.status + '"><div class="g"><div class="t" style="white-space:pre-line">' + esc(p.tekst) + '</div><div class="mute">' + esc(p.czas.slice(8, 10) + '.' + p.czas.slice(5, 7) + ' ' + p.czas.slice(11, 16)) + '</div></div></div>').join('') : '<div class="empty mala">Пока тихо</div>') + '</div>';
   return h;
 }
@@ -663,6 +665,15 @@ function zapiszZadanie(dla) {
 }
 function kuchniaGotowe(id) {
   zmiana('zadanieZrobione', { id: id }, d => { const z = d.zadania.find(x => x.id === id); if (z) z.status = 'zrobione'; }, 'Молодец! Уведомление ушло');
+}
+function pwOdswiez() {
+  const e = document.getElementById('pwb'); if (!e) return;
+  const n = ((D && D.powiadomienia) || []).filter(p => p.status === 'nowe').length;
+  e.innerHTML = I('bell') + (n ? '<span style="position:absolute;top:7px;right:8px;width:10px;height:10px;border-radius:50%;background:var(--red,#ff3b30);box-shadow:0 0 0 2px var(--bg,#fff)"></span>' : '');
+}
+function pwOtworz() {
+  go('dzis');
+  setTimeout(() => { const e = document.getElementById('pwkarta'); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
 }
 function przeczytane() { zmiana('pwCzytaj', { ids: 'wszystkie' }, d => d.powiadomienia.forEach(p => p.status = 'przeczytane')); }
 function jade() {
@@ -1058,6 +1069,7 @@ async function pushSluchaj() {
 /* ---------- start ---------- */
 document.getElementById('logo').innerHTML = I('home');
 document.getElementById('odsw').innerHTML = I('refresh');
+document.getElementById('pwb').innerHTML = I('bell');
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('ark').classList.contains('on')) load(); });
 nav();
