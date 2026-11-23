@@ -1,5 +1,5 @@
 /* =====================================================================
- * RODZINA — serwer aplikacji rodzinnej (Google Apps Script) — v0.2, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.2.1, 23.11.2026
  * PWA (GitHub Pages, wspólna dla wszystkich rodzin) + ten skrypt + arkusz rodziny.
  *
  * SKALOWANIE: kod jest JEDEN dla każdej rodziny. Wszystko, co dotyczy konkretnej rodziny
@@ -7,12 +7,14 @@
  * (Ludzie, Ustawienia, Listy). W kodzie nie ma imion ani identyfikatorów osób.
  * Nowa rodzina = kopia arkusza + ten kod + jej własne linki.
  *
- * Aktualizacje: Aktualizator.gs (łatki .json w folderze Rodzina_Aktualizacje, instalacja z aplikacji).
+ * Ten plik NIE leży w projekcie Apps Script: ładuje go Ladowarka.gs z folderu Rodzina_Aktualizacje/Silniki.
+ * Nowa wersja = łatka .json {id, opis, silnik} w Rodzina_Aktualizacje → aplikacja: Ещё → Обновление системы.
+ * Wejścia dla Ładowarki: na końcu pliku (globalThis.RODZINA_SILNIK).
  * Klucze (właściwości skryptu, opcjonalne): CLAUDE_KEY, FCM_PROJECT, FCM_EMAIL, FCM_KEY.
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.2.0';
+const WERSJA = '0.2.1';
 const SCHEMAT = '2';
 
 const ARKUSZE = {
@@ -69,7 +71,7 @@ const DZIALY = [
 
 // ---------------------------------------------------------------- instalacja / migracja
 // Nowa rodzina: pusty arkusz → Rozszerzenia → Apps Script → pliki z repozytorium (serwer/) → uruchom instalacja.
-function instalacja() {
+function instalacja_() {
   schemat_(true);
   const lu = ark_('Ludzie');
   if (lu.getLastRow() < 2) {
@@ -78,7 +80,7 @@ function instalacja() {
   }
   ScriptApp.getProjectTriggers().forEach(t => { if (t.getHandlerFunction() === 'co15') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('co15').timeBased().everyMinutes(15).create();
-  Logger.log('Gotowe. Wdróż jako aplikację webową, potem uruchom aktualizatorUstaw i linki.');
+  Logger.log('Gotowe. Wdróż jako aplikację webową (Ladowarka.gs), potem uruchom linki.');
 }
 
 // arkusze, brakujące kolumny, ustawienia, listy; migracja v0.1 → v0.2. Lekkie, gdy już zrobione.
@@ -120,9 +122,9 @@ function schemat_(sila) {
 }
 
 // linki osobiste (adres /exec z właściwości WEBAPP_URL, nie /dev)
-function linki() {
+function linki_() {
   const url = PropertiesService.getScriptProperties().getProperty('WEBAPP_URL') || '';
-  if (!/\/exec$/.test(url)) { Logger.log('Brak WEBAPP_URL (…/exec). Najpierw uruchom aktualizatorUstaw.'); return; }
+  if (!/\/exec$/.test(url)) { Logger.log('Brak WEBAPP_URL (…/exec): otwórz raz aplikację, Ładowarka go zapamięta.'); return; }
   const strona = ust_('strona') || 'https://wasylmagic-commits.github.io/Rodzina/';
   wiersze_('Ludzie').forEach(o => Logger.log(o.imie + ':  ' + strona + '#u=' + encodeURIComponent(url) + '&k=' + o.klucz));
 }
@@ -164,9 +166,8 @@ function czyAdmin_(ja) {
 function imieOsoby_(id) { const o = wiersze_('Ludzie').filter(x => x.id === id)[0]; return o ? o.imie : id; }
 
 // ---------------------------------------------------------------- web API
-function doGet(e) {
+function obsluzZapytanie_(e) {
   const p = e.parameter || {};
-  if (p.ustaw) return HtmlService.createHtmlOutput(stronaUstaw_());   // jednorazowe włączenie Aktualizatora (Aktualizator.gs)
   let wynik;
   try {
     const ja = wiersze_('Ludzie').filter(o => o.klucz && o.klucz === p.k)[0];
@@ -290,16 +291,9 @@ const API = {
   pushToken: (ja, p) => { zmien_('Ludzie', ja, { push: p.t || '' }); return { ok: 1 }; },
 
   // szybkie dodawanie tekstem: Claude rozbiera, nic nie zapisuje — aplikacja pyta „верно?”
-  szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500)),
-
-  // --- aktualizacje systemu (Aktualizator.gs), tylko administrator
-  aktSprawdz: (ja) => { wymagajAdmina_(ja); return aktSprawdz_(); },
-  aktWykonaj: (ja, p) => { wymagajAdmina_(ja); return { tekst: aktWykonaj_(p.plik) }; },
-  aktCofnijInfo: (ja) => { wymagajAdmina_(ja); return aktCofnijInfo_(); },
-  aktCofnij: (ja, p) => { wymagajAdmina_(ja); return { tekst: aktCofnij_(p.kopia) }; }
+  szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500))
 };
 
-function wymagajAdmina_(ja) { if (!czyAdmin_(ja)) throw new Error('Обновления ставит только администратор семьи'); }
 
 // id z aplikacji (interfejs pokazuje zmianę od razu, serwer dogania) — jeśli poprawne i wolne
 function idKlienta_(id, arkusz) {
@@ -467,7 +461,7 @@ function tokenFcm_() {
 }
 
 // ---------------------------------------------------------------- wyzwalacz co 15 minut
-function co15() {
+function co15_() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
   try {
@@ -579,3 +573,6 @@ function rozbierz_(ja, tekst) {
   if (!m) throw new Error('Не понял, попробуй иначе');
   return JSON.parse(m[0]);
 }
+
+// ---------------------------------------------------------------- wejścia dla Ładowarki (Ladowarka.gs)
+globalThis.RODZINA_SILNIK = { obsluzZapytanie_: obsluzZapytanie_, co15_: co15_, instalacja_: instalacja_, linki_: linki_, WERSJA: WERSJA };
