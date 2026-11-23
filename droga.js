@@ -47,7 +47,7 @@
     const b = document.getElementById('dgOk'); if (b) { b.disabled = true; b.textContent = 'Ищу, где ты…'; }
     const wyslij = par => api('zgubiona', par).then(r => {
       const tel = (D.telefony || []).filter(t => t.id !== D.ja.id);
-      ark('<h4>Отправлено</h4><div class="mute" style="margin-bottom:12px">Увидят: ' + esc((r.komu || []).join(', ')) + (par.lat === undefined ? '. Точку определить не удалось, поэтому лучше позвони.' : '. Можно не паниковать: тебе помогут.') + '</div>' +
+      ark('<h4>Отправлено</h4><div class="mute" style="margin-bottom:12px">Получил: ' + esc((r.komu || []).join(', ')) + (par.lat === undefined ? '. Точку определить не удалось, лучше позвони.' : '') + '</div>' +
         moje().slice(0, 4).map(m => przyciskMiejsca(m, false)).join('') +
         tel.map(t => '<a class="btn btn-j" style="width:100%;box-sizing:border-box;margin-bottom:10px;text-decoration:none;min-height:54px" href="tel:' + esc(String(t.telefon).replace(/[^\d+]/g, '')) + '">' + I('phone', 1) + ' Позвонить: ' + esc(t.imie) + '</a>').join('') +
         '<button class="btn2 szer" onclick="arkZamknij()">Закрыть</button>');
