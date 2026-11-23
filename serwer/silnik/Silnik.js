@@ -1,5 +1,6 @@
 /* =====================================================================
- * RODZINA — SILNIK aplikacji rodzinnej — v0.3.0, 23.11.2026
+ * RODZINA — SILNIK aplikacji rodzinnej — v0.3.1, 23.11.2026
+ * 0.3.1: pushTest — próbne powiadomienie dla siebie (diagnostyka push).
  * 0.3.0: dokumenty (Drive, rozpoznanie przez Claude, termin ważności), auta, „moje dane” (SOS/kolizja), ustawienia rodziny w aplikacji,
  *        „Jadę do domu” dla obojga rodziców, wysyłka plików przez POST (Ładowarka ≥ 2).
  * PWA (GitHub Pages, wspólna dla wszystkich rodzin) + ten skrypt + arkusz rodziny.
@@ -16,7 +17,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.3.0';
+const WERSJA = '0.3.1';
 const SCHEMAT = '3';
 
 const ARKUSZE = {
@@ -313,6 +314,24 @@ const API = {
   },
 
   pushToken: (ja, p) => { zmien_('Ludzie', ja, { push: p.t || '' }); return { ok: 1 }; },
+
+  // próbne powiadomienie dla siebie; zwraca powód, jeśli nie doszło (bez kluczy w odpowiedzi)
+  pushTest: (ja) => {
+    const pr = PropertiesService.getScriptProperties();
+    if (!ja.push) return { ok: false, powod: 'нет токена: нажми «Включить уведомления»' };
+    if (!pr.getProperty('FCM_PROJECT') || !pr.getProperty('FCM_EMAIL') || !pr.getProperty('FCM_KEY')) return { ok: false, powod: 'в свойствах скрипта нет FCM_PROJECT / FCM_EMAIL / FCM_KEY' };
+    try {
+      const r = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + pr.getProperty('FCM_PROJECT') + '/messages:send', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        headers: { Authorization: 'Bearer ' + tokenFcm_() },
+        payload: JSON.stringify({ message: { token: ja.push,
+          notification: { title: '🔔 ' + (ust_('nazwa_rodziny') || 'Семья'), body: 'Проверка: уведомления работают, ' + ja.imie + '.' },
+          webpush: { fcm_options: { link: ust_('strona') || 'https://wasylmagic-commits.github.io/Rodzina/' } } } })
+      });
+      const kod = r.getResponseCode();
+      return { ok: kod === 200, kod: kod, powod: kod === 200 ? '' : String(r.getContentText()).slice(0, 200) };
+    } catch (e) { return { ok: false, powod: String(e.message).slice(0, 200) }; }
+  },
 
   // szybkie dodawanie tekstem: Claude rozbiera, nic nie zapisuje — aplikacja pyta „верно?”
   szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500)),

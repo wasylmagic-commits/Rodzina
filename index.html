@@ -413,7 +413,7 @@
  * Bez gestów przesunięcia: tylko przyciski, kółka „сделано” i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.3.0';
+const WERSJA_APLIKACJI = '0.3.1';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -917,6 +917,7 @@ function wWiecej() {
     '<div class="row"><div class="g">Ты</div><b>' + esc(D.ja.imie) + '</b></div></div>';
   const kafle = [['gear', 'Настройки', 'цвет, фон, мои данные', 'podstrona(\'ust\')'], ['shield', 'SOS', 'авария, бланк ДТП', 'sosOtworz()']];
   if (window.FB && 'Notification' in window) kafle.push(['bell', D.ja.push ? 'Уведомления' : 'Включить уведомления', D.ja.push ? 'включены' : 'пуши на телефон', 'pushWlacz()']);
+  if (window.FB && D.ja.push) kafle.push(['bell', 'Проверить уведомления', 'пришлю пробное', 'pushTest()']);
   if (D.seriaKto) kafle.push(['flame', 'Серия', D.seria.dni + ' дн. без пропусков', 'go(\'dzis\')']);
   if (D.ja.admin) kafle.push(['update', 'Обновление системы', 'проверить и установить', 'podstrona(\'akt\')']);
   kafle.push(['info', 'О приложении', 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']);
@@ -1027,6 +1028,14 @@ async function pushWlacz() {
     const t = await firebase.messaging().getToken({ vapidKey: FB.vapidKey, serviceWorkerRegistration: reg });
     await api('pushToken', { t: t });
     D.ja.push = true; render(); toast('Уведомления включены');
+  } catch (e) { toast('Не вышло: ' + e.message); }
+}
+
+async function pushTest() {
+  toast('Отправляю пробное…');
+  try {
+    const r = await api('pushTest');
+    toast(r.ok ? 'Отправлено, смотри шторку уведомлений' : 'Не дошло: ' + (r.powod || r.kod));
   } catch (e) { toast('Не вышло: ' + e.message); }
 }
 
