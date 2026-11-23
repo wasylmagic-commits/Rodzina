@@ -461,7 +461,7 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.7.2';
+const WERSJA_APLIKACJI = '0.7.3';
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -886,8 +886,26 @@ function panelPlanu(otw) {
     (pl._kiedy ? 'Обновлено ' + esc(pl._kiedy.slice(8, 10) + '.' + pl._kiedy.slice(5, 7) + ' ' + pl._kiedy.slice(11, 16)) + '. ' : '') + 'Акции из интернета могут устареть — проверь на месте.</div></div>';
   return h;
 }
-function planSzukaj() {
+// когда в последний раз искали акции (по таблице плана на сервере или по этому телефону) — чтобы не платить дважды за одно и то же
+const teraz16 = () => { const d = new Date(), p = n => ('0' + n).slice(-2); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+function planOstatni() {
+  const a = (D.plan || {})._kiedy || '', b = LS.get('planT') || '', s = a > b ? a : b;
+  if (!s) return null;
+  const d = new Date(s); if (isNaN(d)) return null;
+  const h = (Date.now() - d.getTime()) / 36e5, dd = s.slice(0, 10), t = s.slice(11, 16);
+  const kiedy = dd === dzis() ? 'сегодня в ' + t : dd === plusDni(dzis(), -1) ? 'вчера в ' + t : s.slice(8, 10) + '.' + s.slice(5, 7) + ' в ' + t;
+  return { h: h, kiedy: kiedy };
+}
+function planSzukaj(wymus) {
   if (PLAN_LAD) return;
+  const o = planOstatni();
+  if (!wymus && o && o.h < 72) {
+    ark('<h4>Стоп, ' + esc(D.ja.imie) + '!</h4><div style="margin-bottom:6px">Акции уже искали <b>' + esc(o.kiedy) + '</b>. У сетей они меняются в основном по понедельникам и четвергам, так что скорее всего ничего нового.</div>' +
+      '<div class="mute" style="margin-bottom:14px">Каждый поиск стоит денег (примерно 15–40 центов). Деньги любят счёт.</div>' +
+      '<div class="ab"><button class="btn" onclick="arkZamknij()">' + I('check', 1) + ' Не надо, экономлю</button><button class="btn2" onclick="arkZamknij();planSzukaj(1)">Всё равно искать</button></div>');
+    return;
+  }
+  LS.set('planT', teraz16());
   PLAN_LAD = 1; render();
   const typD = TYP_F ? (TYPY.find(x => x[0] === TYP_F) || [0, 0, ['inne']])[2].join(',') : '';
   api('planSzukaj', { lista: LISTA, dzialy: typD }).then(w => { przyjmij(w); toast(w.planUwaga ? w.planUwaga : (w.planN ? 'Готово: цены найдены для ' + w.planN + ' поз.' : 'Цен не нашёл — пока нет ни акций, ни истории чеков')); })
