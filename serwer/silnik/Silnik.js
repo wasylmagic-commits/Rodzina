@@ -26,7 +26,7 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.9.1';
+const WERSJA = '0.9.2';
 const SCHEMAT = '10';
 
 const ARKUSZE = {
@@ -478,8 +478,17 @@ const API = {
     if (!slowo || !znaczenie) throw new Error('Нужны слово и что оно значит');
     slownik_();
     const jest = wiersze_('Slownik').filter(o => o.slowo === slowo)[0];
-    if (jest) zmien_('Slownik', jest, { znaczenie: znaczenie, czas: teraz_() });
-    else dodaj_('Slownik', { slowo: slowo, znaczenie: znaczenie, dzial: '', czas: teraz_() });
+    const dzial = DZIALY.some(d => d[0] === p.dzial) ? p.dzial : '';   // dział (opcjonalnie): pomaga sortować zakupy
+    if (jest) zmien_('Slownik', jest, p.dzial === undefined ? { znaczenie: znaczenie, czas: teraz_() } : { znaczenie: znaczenie, dzial: dzial, czas: teraz_() });
+    else dodaj_('Slownik', { slowo: slowo, znaczenie: znaczenie, dzial: dzial, czas: teraz_() });
+    return { ok: 1 };
+  },
+  // 0.9.2: słownik widoczny i edytowalny w aplikacji (Ещё → Словарь семьи), bez udziału Claude i bez kosztów API
+  slownikLista: (ja, p) => slownik_().map(o => ({ slowo: String(o.slowo), znaczenie: String(o.znaczenie), dzial: String(o.dzial || '') })),
+  slownikUsun: (ja, p) => {
+    const slowo = norm_(String(p.slowo || ''));
+    const o = wiersze_('Slownik').filter(x => x.slowo === slowo)[0];
+    if (o) usunWiersze_('Slownik', [o]);
     return { ok: 1 };
   },
 
@@ -912,7 +921,7 @@ function stan_(ja) {
     jade: listaKto_(ust_('kto_jedzie')).indexOf(ja.id) >= 0,
     seria: seriaKto ? seria_(seriaKto) : { dni: 0, zrobione: 0 }, seriaKto: seriaKto,
     serieCel: [Number(ust_('seria_tydzien')) || 7, Number(ust_('seria_miesiac')) || 30],
-    szybko: !!PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY'),
+    szybko: !!PropertiesService.getScriptProperties().getProperty('CLAUDE_KEY'), slownikOk: true,
     moje: { nazwisko: String(ja.nazwisko || ''), telefon: String(ja.telefon || ''), adres: String(ja.adres || ''), prawo_jazdy: String(ja.prawo_jazdy || ''),
       cisza_od: String(ja.cisza_od || '22:00'), cisza_do: String(ja.cisza_do || '07:00') },
     telefony: ludzieAll.filter(o => o.telefon).map(o => ({ id: o.id, imie: o.imie, telefon: String(o.telefon) })),

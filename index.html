@@ -1120,14 +1120,56 @@ function wWiecej() {
   if (PODSTR === 'akt') return wAktualizacja();
   if (PODSTR === 'ust') return wUstawienia();
   if (PODSTR === 'info') return wSystem();
+  if (PODSTR === 'slownik') return wSlownik();
   if (PODSTR === 'wyd' && window.wWydatki) return wWydatki();
   if (PODSTR === 'droga' && window.wDroga) return wDroga();
   // 0.5.0: porządek – tylko to, czego nie ma gdzie indziej. SOS jest w nagłówku, seria na «Сегодня», Wejscie w «Документы», powiadomienia w Настройки.
   const kafle = [['gear', 'Настройки', 'цвет, фон, уведомления, мои данные, машины', 'podstrona(\'ust\')'],
     ['info', 'Система', D.ja.admin ? 'версия и обновления' : 'версия ' + WERSJA_APLIKACJI, 'podstrona(\'info\')']];
+  if (D.slownikOk) kafle.splice(1, 0, ['spark', 'Словарь семьи', 'ваши слова и что они значат', 'podstrona(\'slownik\')']);
   if (D.miejsca && window.wDroga) kafle.unshift(['pin', 'Дорога', 'места и маршруты, «не знаю, куда идти»', 'podstrona(\'droga\')']);
   if (D.wydatkiOk && window.wydOtworz) kafle.unshift(['wallet', 'Траты', 'чеки, магазины, аналитика', 'wydOtworz()']);
   return '<div class="more">' + kafle.map(([ic, t, s, f]) => '<button onclick="' + f + '"><div class="ch">' + I(ic) + '</div><div><b>' + esc(t) + '</b><span>' + esc(s) + '</span></div></button>').join('') + '</div>';
+}
+/* ---------- Словарь семьи: слова суржика, которые понимает быстрое добавление (правится здесь, Claude не нужен) ---------- */
+let SL = null, SLERR = '';
+function slWczytaj() {
+  SLERR = ''; api('slownikLista').then(w => { SL = w; if (PODSTR === 'slownik') render(); })
+    .catch(e => { SLERR = e.message || 'нет связи'; if (PODSTR === 'slownik') render(); });
+}
+function wSlownik() {
+  if (SL === null && !SLERR) slWczytaj();
+  let h = naglowek('Словарь семьи', 'слова, которые понимает быстрое добавление');
+  h += '<div class="card"><div class="mute" style="margin-bottom:10px">Слово на вашем суржике и что оно значит. Claude смотрит сюда при каждом добавлении. Нажми на слово в списке, чтобы поправить.</div>' +
+    '<input id="slS" class="as-in" placeholder="Слово, например: таблетки" autocapitalize="none">' +
+    '<input id="slZ" class="as-in" style="margin-top:8px" placeholder="Что значит, например: для посудомойки">' +
+    '<select id="slD" class="as-in" style="margin-top:8px"><option value="">Отдел магазина: не указан</option>' + (D.dzialy || []).filter(d => d[0] !== 'inne').map(d => '<option value="' + esc(d[0]) + '">' + esc(d[1]) + '</option>').join('') + '</select>' +
+    '<button class="btn szer" style="margin-top:12px" onclick="slDodaj()">' + I('check', 1) + ' Запомнить</button></div>';
+  if (SLERR) return h + '<div class="card"><div class="mute">Не загрузилось: ' + esc(SLERR) + '. Нужна версия системы 0.9.2.</div><button class="btn2 szer" style="margin-top:10px" onclick="SLERR=\'\';SL=null;render()">Повторить</button></div>';
+  if (SL === null) return h + '<div class="szst" style="margin:0"><span class="kr"></span><span class="tx">Загружаю словарь…</span></div>';
+  if (!SL.length) return h + '<div class="card"><div class="empty mala">Пока пусто</div></div>';
+  const nazwaDzialu = id => ((D.dzialy || []).find(d => d[0] === id) || [])[1] || '';
+  return h + '<div class="card">' + SL.map((o, i) => '<div class="row"><div class="g" onclick="slEdytuj(' + i + ')"><div class="t">' + esc(o.slowo) + '</div><div class="mute">' + esc(o.znaczenie) + (o.dzial ? ' · ' + esc(nazwaDzialu(o.dzial)) : '') + '</div></div>' +
+    '<button class="ib mal" onclick="slUsunPytaj(' + i + ')" aria-label="Удалить">' + I('x', 1) + '</button></div>').join('') + '</div>';
+}
+function slEdytuj(i) {
+  const o = SL && SL[i]; if (!o) return;
+  document.getElementById('slS').value = o.slowo; document.getElementById('slZ').value = o.znaczenie; document.getElementById('slD').value = o.dzial || '';
+  document.getElementById('slZ').focus(); window.scrollTo(0, 0);
+}
+function slDodaj() {
+  const s = document.getElementById('slS').value.trim(), z = document.getElementById('slZ').value.trim(), d = document.getElementById('slD').value;
+  if (!s || !z) { toast('Нужны слово и что оно значит'); return; }
+  api('slownikDodaj', { slowo: s, znaczenie: z, dzial: d }).then(() => { toast('Запомнил'); SL = null; SLERR = ''; render(); }).catch(e => toast(e.message));
+}
+function slUsunPytaj(i) {
+  const o = SL && SL[i]; if (!o) return;
+  ark('<h4>Удалить «' + esc(o.slowo) + '»?</h4><div class="mute" style="margin-bottom:14px">' + esc(o.znaczenie) + '</div>' +
+    '<div class="ab"><button class="btn czerw" onclick="slUsun(' + i + ')">' + I('trash', 1) + ' Удалить</button><button class="btn2" onclick="arkZamknij()">Отмена</button></div>');
+}
+function slUsun(i) {
+  const o = SL && SL[i]; arkZamknij(); if (!o) return;
+  api('slownikUsun', { slowo: o.slowo }).then(() => { toast('Удалено'); SL = null; SLERR = ''; render(); }).catch(e => toast(e.message));
 }
 function wSystem() {
   let h = naglowek('Система', 'версия ' + WERSJA_APLIKACJI);
