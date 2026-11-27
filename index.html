@@ -300,6 +300,12 @@
   .btn.jade svg{width:26px;height:26px}
   .szybko{display:flex;gap:8px;align-items:center;margin-bottom:14px}
   .szybko input.as-in{margin:0;flex:1;border-radius:999px;height:46px;background:var(--card);box-shadow:inset 0 0 0 .5px var(--line),var(--sh)}
+  .szst{display:flex;align-items:center;gap:10px;margin:-6px 0 14px;padding:10px 14px;border-radius:14px;background:var(--fill);color:var(--mute);font-size:15px;line-height:1.3}
+  .szst .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .szst.blad{flex-wrap:wrap;color:var(--tx);box-shadow:inset 0 0 0 1px #ff453a88}
+  .szst.blad .tx{white-space:normal;flex-basis:100%}
+  .szst .btn2{min-height:36px;padding:0 14px}
+  .kr{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--acc);border-top-color:transparent;animation:spin .8s linear infinite;flex:none}
   .szybko.mal input.as-in{height:40px;background:var(--fill);box-shadow:none}
   .szybko.mal .btn.okr{width:40px;min-width:40px;min-height:40px}
   input.as-in,select.as-in,textarea.as-in{width:100%;font:inherit;font-size:17px;color:var(--ink);background:var(--fill);border:0;border-radius:14px;padding:11px 14px;outline:none;color-scheme:light dark}
@@ -461,7 +467,8 @@
  * Przesuwanie palcem tylko między dolnymi zakładkami (jak w Serwis myjni, można wyłączyć w Настройки); na pozycjach list nigdy – kółka „сделано”, przyciski i menu „⋯”.
  * Zmiana widoczna od razu (optymistycznie), serwer dogania w tle; odświeżenie przy otwarciu, powrocie i przyciskiem.
  */
-const WERSJA_APLIKACJI = '0.8.1';
+const WERSJA_APLIKACJI = '0.8.2';
+let SZ = null;   // stan szybkiego dodawania na „Сегодня”: {tekst, stan: 'laduje'|'blad', blad}
 const LS = { get: k => { try { return localStorage.getItem('rodzina.' + k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { localStorage.setItem('rodzina.' + k, v); } catch (e) {} } };
 (function () {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -652,7 +659,12 @@ function render() {
 /* ---------- Сегодня ---------- */
 function wDzis() {
   let h = '';
-  if (D.szybko) h += '<div class="szybko"><input id="szt" class="as-in" placeholder="Скажи или напиши: «стоматолог Насти в четверг в 16»" onkeydown="if(event.key===\'Enter\')szybko()"><button class="btn okr" onclick="szybko()" aria-label="Добавить">' + I('plus') + '</button></div>';
+  if (D.szybko) {
+    const zajety = !!(SZ && SZ.stan === 'laduje');
+    h += '<div class="szybko"><input id="szt" class="as-in" placeholder="Скажи или напиши: «стоматолог Насти в четверг в 16»" onkeydown="if(event.key===\'Enter\')szybko()"' + (zajety ? ' disabled' : '') + '><button class="btn okr" onclick="szybko()"' + (zajety ? ' disabled' : '') + ' aria-label="Добавить">' + (zajety ? '<span class="kr" style="border-color:#fff;border-top-color:transparent"></span>' : I('plus')) + '</button></div>';
+    if (zajety) h += '<div class="szst"><span class="kr"></span><span class="tx">Разбираю: «' + esc(SZ.tekst) + '»</span></div>';
+    else if (SZ && SZ.stan === 'blad') h += '<div class="szst blad"><span class="tx">Не вышло: ' + esc(SZ.blad) + '<br><span class="mute">«' + esc(SZ.tekst) + '»</span></span><button class="btn2" onclick="szybko(SZ.tekst)">Повторить</button><button class="btn2" onclick="szybkoEdytuj()">Изменить</button></div>';
+  }
   if (D.jade) {
     h += '<div class="card"><button class="btn jade" onclick="jade()">' + I('car') + ' Еду домой</button>' +
       '<div class="seg" style="margin:12px 0 0">' + [0, 20, 40, 60].map(m => '<button class="' + (JADE_MIN === m ? 'on' : '') + '" onclick="JADE_MIN=' + m + ';render()">' + (m ? m + ' мин' : 'без времени') + '</button>').join('') + '</div></div>';
@@ -1188,19 +1200,42 @@ function arkZamknij() {
 }
 
 /* ---------- szybkie dodawanie tekstem (Claude rozbiera, człowiek potwierdza) ---------- */
-let PROP = null;
-function szybko() {
-  const e = document.getElementById('szt'), t = e.value.trim(); if (!t) return;
-  const ph = e.placeholder; e.blur(); e.disabled = true; e.placeholder = 'Разбираю…';
-  ikonaOdsw(true);
+let PROP = null, PROP_T = '';
+function szybko(tekst) {
+  const e = document.getElementById('szt');
+  const t = String(tekst || (e ? e.value : '')).trim(); if (!t || (SZ && SZ.stan === 'laduje')) return;
+  if (e) { e.value = ''; e.blur(); }
+  SZ = { tekst: t, stan: 'laduje' }; render(); ikonaOdsw(true);
   api('szybko', { tekst: t }).then(p => {
-    PROP = p;
-    if (p.typ === 'niejasne') return ark('<h4>Уточни</h4><div>' + esc(p.pytanie || 'Не понял, напиши подробнее') + '</div><div class="ab"><button class="btn" onclick="arkZamknij()">Ок</button></div>');
+    SZ = null; PROP = p; PROP_T = t; render();
+    if (p.typ === 'niejasne') return szybkoPytanie(p);
     const opis = p.podsumowanie || (p.typ === 'pozycje' ? (p.pozycje || []).join(', ') : p.tytul);
     const typ = p.typ === 'wydarzenie' ? 'В календарь' : 'В список «' + nazwaListy(p.lista || 'moje') + '»';
-    ark('<h4>' + esc(typ) + '</h4><div class="t" style="font-size:19px;margin:6px 0">' + esc(opis) + '</div><div class="mute">Верно?</div>' +
+    ark('<h4>' + esc(typ) + '</h4><div class="t" style="font-size:19px;margin:6px 0">' + esc(opis) + '</div><div class="mute">' + (p.niepewne ? 'Не уверен, проверь: так правильно?' : 'Верно?') + '</div>' +
       '<div class="ab"><button class="btn" onclick="szybkoTak()">' + I('check', 1) + ' Да, сохранить</button><button class="btn2" onclick="szybkoPopraw()">Поправить</button></div>');
-  }).catch(err => toast(err.message)).finally(() => { ikonaOdsw(false); const x = document.getElementById('szt'); if (x) { x.disabled = false; x.placeholder = ph; } });
+  }).catch(err => { SZ = { tekst: t, stan: 'blad', blad: err.message || 'нет связи' }; render(); }).finally(() => ikonaOdsw(false));
+}
+function szybkoEdytuj() {
+  const t = SZ ? SZ.tekst : ''; SZ = null; render();
+  setTimeout(() => { const x = document.getElementById('szt'); if (x) { x.value = t; x.focus(); } }, 30);
+}
+// Claude не понял: если дело в слове, спрашиваем, что оно значит, и запоминаем в словаре семьи
+function szybkoPytanie(p) {
+  if (p.slowo) {
+    ark('<h4>Что значит «' + esc(p.slowo) + '»?</h4><div class="mute" style="margin-bottom:10px">Объясни один раз, дальше буду понимать сам.</div>' +
+      '<input id="szZn" class="as-in" style="margin-bottom:12px" placeholder="Например: таблетки для посудомойки" onkeydown="if(event.key===\'Enter\')szybkoUcz()">' +
+      '<div class="ab"><button class="btn" onclick="szybkoUcz()">Запомнить и добавить</button><button class="btn2" onclick="szybkoPopraw()">Написать иначе</button></div>');
+    setTimeout(() => { const x = document.getElementById('szZn'); if (x) x.focus(); }, 350);
+  } else {
+    ark('<h4>Уточни</h4><div>' + esc(p.pytanie || 'Не понял, напиши подробнее') + '</div><div class="ab"><button class="btn" onclick="szybkoPopraw()">Дописать</button></div>');
+  }
+}
+function szybkoUcz() {
+  const x = document.getElementById('szZn'), v = x ? x.value.trim() : ''; if (!v) { toast('Напиши, что это значит'); return; }
+  const slowo = PROP && PROP.slowo, t = PROP_T; arkZamknij();
+  SZ = { tekst: t, stan: 'laduje' }; render(); ikonaOdsw(true);
+  api('slownikDodaj', { slowo: slowo, znaczenie: v }).then(() => { SZ = null; szybko(t); })
+    .catch(err => { SZ = { tekst: t, stan: 'blad', blad: err.message || 'нет связи' }; render(); ikonaOdsw(false); });
 }
 function szybkoTak() {
   const p = PROP, e = document.getElementById('szt'); arkZamknij(); if (e) e.value = '';
@@ -1214,7 +1249,8 @@ function szybkoTak() {
 }
 function szybkoPopraw() {
   const p = PROP;
-  if (p.typ === 'wydarzenie') formWyd(p);
+  if (p.typ === 'niejasne') { arkZamknij(); setTimeout(() => { const x = document.getElementById('szt'); if (x) { x.value = PROP_T; x.focus(); } }, 50); }
+  else if (p.typ === 'wydarzenie') formWyd(p);
   else { arkZamknij(); LISTA = listyWszystkie().indexOf(p.lista) >= 0 ? p.lista : 'moje'; go('listy'); setTimeout(() => { const n = document.getElementById('nowa'); if (n) { n.value = (p.pozycje || []).join(', '); n.focus(); } }, 50); }
 }
 

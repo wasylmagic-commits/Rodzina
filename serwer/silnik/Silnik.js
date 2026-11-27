@@ -26,8 +26,8 @@
  * ===================================================================== */
 
 const TZ = 'Europe/Warsaw';
-const WERSJA = '0.9.0';
-const SCHEMAT = '9';
+const WERSJA = '0.9.1';
+const SCHEMAT = '10';
 
 const ARKUSZE = {
   Ludzie:        ['id', 'imie', 'rola', 'klucz', 'push', 'cisza_od', 'cisza_do', 'nazwisko', 'telefon', 'adres', 'prawo_jazdy'],
@@ -46,6 +46,7 @@ const ARKUSZE = {
   Ustawienia:    ['klucz', 'wartosc', 'opis'],
   Dokumenty:     ['id', 'tytul', 'kategoria', 'wlasciciel', 'auto', 'widocznosc', 'plik', 'mime', 'nazwa_pliku', 'rozmiar', 'wazny_do', 'sos', 'notatka', 'od', 'czas', 'status', 'do_kogo', 'adres', 'telefon', 'wizyta', 'wydarzenie'],
   Dziennik:      ['czas', 'zrodlo', 'plik', 'status', 'odpowiedz'],
+  Slownik:       ['slowo', 'znaczenie', 'dzial', 'czas'],   // 0.9.1: słownik rodzinnego suржика (słowo → co znaczy)
   Auta:          ['id', 'nazwa', 'marka', 'nr_rej', 'vin', 'rok', 'silnik', 'ubezpieczyciel', 'polisa', 'polisa_do', 'tel_szkody', 'tel_assistance', 'ac', 'notatka', 'czas', 'kolor']
 };
 
@@ -471,6 +472,16 @@ const API = {
 
   // szybkie dodawanie tekstem: Claude rozbiera, nic nie zapisuje — aplikacja pyta „верно?”
   szybko: (ja, p) => rozbierz_(ja, String(p.tekst || '').slice(0, 500)),
+  // 0.9.1: człowiek tłumaczy nieznane słowo — zapamiętujemy je w słowniku rodziny
+  slownikDodaj: (ja, p) => {
+    const slowo = norm_(String(p.slowo || '')).slice(0, 60), znaczenie = String(p.znaczenie || '').trim().slice(0, 120);
+    if (!slowo || !znaczenie) throw new Error('Нужны слово и что оно значит');
+    slownik_();
+    const jest = wiersze_('Slownik').filter(o => o.slowo === slowo)[0];
+    if (jest) zmien_('Slownik', jest, { znaczenie: znaczenie, czas: teraz_() });
+    else dodaj_('Slownik', { slowo: slowo, znaczenie: znaczenie, dzial: '', czas: teraz_() });
+    return { ok: 1 };
+  },
 
   // --- moje dane (do SOS i oświadczenia o kolizji) — każdy zmienia tylko swoje
   jaZmien: (ja, p) => {
@@ -816,8 +827,22 @@ function widocznePozycje_(ja, zeZrobionymi) {
 }
 
 const norm_ = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+// słownik rodziny: pierwszy raz zakłada kilka słów na start; dalej uczy się z pytań „что значит…?”
+const SLOWNIK_START = [
+  ['таблетки', 'таблетки для посудомоечной машины', 'chemia'],
+  ['змыварка', 'посудомоечная машина (польск. zmywarka)', ''],
+  ['zmywarka', 'посудомоечная машина', '']
+];
+function slownik_() {
+  const w = wiersze_('Slownik');
+  if (w.length) return w;
+  SLOWNIK_START.forEach(x => dodaj_('Slownik', { slowo: x[0], znaczenie: x[1], dzial: x[2], czas: teraz_() }));
+  return wiersze_('Slownik');
+}
 function dzialDla_(nazwa) {
   const n = norm_(nazwa); if (!n) return 'inne';
+  const sl = wiersze_('Slownik').filter(o => o.dzial && n.split(/[^a-zа-яąćęłńóśźż0-9]+/i).indexOf(String(o.slowo)) >= 0)[0];
+  if (sl) return String(sl.dzial);
   const nauczone = wiersze_('Dzialy').filter(o => o.nazwa === n)[0];
   if (nauczone) return String(nauczone.dzial);
   // wygrywa najdłuższy pasujący początek słowa („масло подсолнечное” → бакалея, „масло сливочное” → молочное)
@@ -1405,12 +1430,17 @@ function rozbierz_(ja, tekst) {
   if (!tekst.trim()) throw new Error('Пустой текст');
   const d = new Date(), ludzie = wiersze_('Ludzie').map(o => o.id + '=' + o.imie).join(', ');
   const listy = wiersze_('Listy').map(l => l.id + '=' + l.nazwa).concat(['moje=личные дела']).join(', ');
+  const slownik = slownik_().map(o => '«' + o.slowo + '» = ' + o.znaczenie).join('; ');
   const sys = 'Ты разбираешь короткие сообщения семьи для семейного органайзера. Сегодня ' +
     Utilities.formatDate(d, TZ, 'yyyy-MM-dd') + ' (' + DNI[Number(Utilities.formatDate(d, TZ, 'u')) % 7] + '), время ' + godz_(d) + ', часовой пояс Варшава. ' +
     'Пишет: ' + ja.id + '. Люди: ' + ludzie + '. Списки: ' + listy + '. Ответь ТОЛЬКО JSON без пояснений, один из вариантов:\n' +
     '{"typ":"wydarzenie","tytul":"...","start":"YYYY-MM-DDTHH:mm","kto":"id,id или wszyscy","miejsce":"","przyp":60}\n' +
     '{"typ":"pozycje","lista":"id списка","pozycje":["..."],"dla":"id или пусто","termin":"YYYY-MM-DD или пусто"}\n' +
-    '{"typ":"niejasne","pytanie":"что уточнить"}\n' +
+    '{"typ":"niejasne","pytanie":"что уточнить","slowo":"непонятное слово, если вопрос именно о слове, иначе пусто"}\n' +
+    'Семья говорит на суржике: русский вперемешку с польским и украинским («змыварка» = zmywarka, «до» вместо «для» и т.п.). Понимай смысл сам, польские слова знай. ' +
+    'Семейные слова: ' + slownik + '. ' +
+    'Если в тексте есть слово или имя, которое не удаётся понять ни по-русски, ни по-польски, ни по словарю, не угадывай: верни niejasne, в "slowo" это слово, в "pytanie" вопрос «Что значит …?». ' +
+    'В pozycje пиши понятное название по-русски, без суржика (например «таблетки для посудомоечной машины»). Если не уверен в списке или в смысле, добавь поле "niepewne":true. ' +
     'Правила: событие с конкретным временем (врач, экзамен, встреча) — wydarzenie; если время события не указано — niejasne. ' +
     'Что купить — pozycje в списке покупок, каждая вещь отдельно. Дело без времени — pozycje в подходящем списке (дом, авто, разное) или moje. ' +
     '«Следующий четверг» = ближайший четверг после сегодняшнего дня. ' +
